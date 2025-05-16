@@ -2,9 +2,9 @@ import inspect
 from collections.abc import Callable
 
 """
-    The user can use insntaces of ToolManager to regsiter functions as tools through the decorator (refer the example usage below).
+    The user can use insntaces of ToolManager to regsiter functions as tools through the decorator.
     The user can also use the ToolManager instance to get the schema of the tools, call a tool with validated arguments, and check if a tool is registered.
-    Moreover, the user can group like tools together by creating a new ToolManager instance and registering the tools to it. 
+    Moreover, the user can group like tools together by creating a new ToolManager instance and registering the tools to it.
     So if agent A requires tools A1, A2, and A3, and agent B requires tools B1, B2, and B3, the user can create two ToolManager instances: tool_manager_A and tool_manager_B.
 """
 
@@ -86,27 +86,5 @@ class ToolManager:
     def has_tool(self, name: str) -> bool:
         return name in self.tools
 
-
-'''Example Usage:
-
-if __name__ == "__main__":
-    tool_manager = ToolManager()
-
-    @tool_manager.register
-    def add_two_numbers(a: int, b: int) -> str:
-        """Takes two numbers and sums them up"""
-        c = a + b
-        return json.dumps({"a": a, "b": b, "c": c})
-    @tool_manager.register
-    def multiply_two_numbers(x: int, y: int) -> str:
-        """Takes two numbers and multiplies them"""
-        z = x * y
-        return json.dumps({"x": x, "y": y, "z": z})
-
-    print(tool_manager.get_schema())
-    print(tool_manager.call("add_two_numbers", {"a": 1, "b": 2}))
-    print(tool_manager.has_tool("add_two_numbers"))
-
-'''
 
 
