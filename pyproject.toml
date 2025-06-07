@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "Mesa-LLM"
 description = "Generative Agent-Based Modeling with Large Language Models Empowered Agents"
 license = { text = "MIT" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
   { name = "Project Mesa Team", email = "projectmesa@googlegroups.com" },
 ]
@@ -65,7 +65,7 @@ testpaths = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 lint.select = [
     # "ANN", # annotations TODO
     "B", # bugbear
@@ -111,7 +111,7 @@ extend-exclude = ["docs", "build"]
 convention = "google"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
