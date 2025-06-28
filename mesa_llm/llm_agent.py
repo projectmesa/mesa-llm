@@ -1,3 +1,12 @@
+import os
+
+import pinecone
+import weaviate
+from dotenv import load_dotenv
+from langchain.chains import RetrievalQA
+from langchain.chat_models import ChatOpenAI
+from langchain.document_loaders import PyPDFLoader, TextLoader
+from langchain.vectorstores import Pinecone, Qdrant, Weaviate
 from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
@@ -9,6 +18,7 @@ from mesa.space import (
     MultiGrid,
     SingleGrid,
 )
+from qdrant_client import QdrantClient
 
 from mesa_llm import Plan
 from mesa_llm.memory import Memory
@@ -118,6 +128,79 @@ class LLMAgent(Agent):
             )
 
         return tool_call_resp
+
+    def add_doc(self, vector_db, embedding_model, doc_path, llm):
+        # Load env variables
+        load_dotenv()
+        openai_key = os.getenv("OPENAI_API_KEY")
+        backend = vector_db.strip().lower()  # pinecone / weaviate / qdrant
+
+        # Prompt user for document path
+
+        # Load document
+        if doc_path.endswith(".pdf"):
+            loader = PyPDFLoader(doc_path)
+        elif doc_path.endswith(".txt"):
+            loader = TextLoader(doc_path)
+        else:
+            raise ValueError("Only .txt and .pdf files supported.")
+
+        docs = loader.load()
+
+        # Set up vector DBs
+        if backend == "pinecone":
+            # Init Pinecone
+            pinecone.init(
+                api_key=os.getenv("PINECONE_API_KEY"),
+                environment=os.getenv("PINECONE_ENV"),
+            )
+            index_name = "langchain-rag"
+            if index_name not in pinecone.list_indexes():
+                pinecone.create_index(index_name, dimension=1536)
+            vectorstore = Pinecone.from_documents(
+                docs, embedding_model, index_name=index_name
+            )
+
+        elif backend == "weaviate":
+            client = weaviate.Client(
+                url=os.getenv("WEAVIATE_URL"),
+                auth_client_secret=weaviate.AuthApiKey(os.getenv("WEAVIATE_API_KEY")),
+            )
+
+            index_name = "Document"
+            if not client.schema.contains({"class": index_name}):
+                client.schema.create_class({"class": index_name, "vectorizer": "none"})
+
+            vectorstore = Weaviate.from_documents(
+                documents=docs,
+                embedding=embedding_model,
+                client=client,
+                index_name=index_name,
+            )
+
+        elif backend == "qdrant":
+            client = QdrantClient(
+                url="https://your-qdrant-cloud-instance.com",  # Replace with your Qdrant Cloud URL
+                api_key=os.getenv("QDRANT_API_KEY"),
+            )
+            vectorstore = Qdrant.from_documents(
+                documents=docs,
+                embedding=embedding_model,
+                qdrant_client=client,
+                collection_name="rag-docs",
+            )
+
+        else:
+            raise ValueError("Unsupported backend.")
+
+        # LLM setup
+        llm = ChatOpenAI(openai_api_key=openai_key, temperature=0)
+
+        # Create RAG chain
+        rag_chain = RetrievalQA.from_chain_type(
+            llm=llm, retriever=vectorstore.as_retriever(), return_source_documents=True
+        )
+        return rag_chain
 
     def generate_obs(self) -> Observation:
         """
