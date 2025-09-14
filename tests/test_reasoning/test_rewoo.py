@@ -202,7 +202,7 @@ class TestReWOOReasoning:
         reasoning = ReWOOReasoning(mock_agent)
 
         with pytest.raises(
-            ValueError, match="No prompt provided and agent.step_prompt is None"
+            ValueError, match=r"No prompt provided and agent.step_prompt is None"
         ):
             reasoning.plan()
 

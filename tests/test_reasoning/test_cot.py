@@ -142,7 +142,7 @@ class TestCoTReasoning:
         obs = Observation(step=1, self_state={}, local_state={})
 
         with pytest.raises(
-            ValueError, match="No prompt provided and agent.step_prompt is None"
+            ValueError, match=r"No prompt provided and agent.step_prompt is None"
         ):
             reasoning.plan(obs=obs)
 

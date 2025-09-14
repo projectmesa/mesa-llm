@@ -98,7 +98,7 @@ def test_speak_to_records_on_recipients(mocker):
     r2.memory.add_to_memory.assert_called_once()
 
     # Verify payload structure for one recipient
-    args, kwargs = r1.memory.add_to_memory.call_args
+    _, kwargs = r1.memory.add_to_memory.call_args
     assert kwargs["type"] == "message"
     content = kwargs["content"]
     assert content["message"] == message
