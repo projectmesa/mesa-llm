@@ -51,8 +51,8 @@ docs = [
 ]
 
 [project.urls]
-homepage = "https://github.com/wang-boyu/mesa-llm"
-repository = "https://github.com/wang-boyu/mesa-llm"
+homepage = "https://github.com/projectmesa/mesa-llm"
+repository = "https://github.com/projectmesa/mesa-llm"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mesa_llm"]

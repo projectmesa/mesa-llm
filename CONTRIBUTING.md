@@ -11,8 +11,8 @@ In no particular order, examples include:
 - Documentation improvements
 - Tutorials
 
-[Mesa-LLM discussions]: https://github.com/wang-boyu/mesa-llm/discussions
-[issue]: https://github.com/wang-boyu/mesa-llm/issues
+[Mesa-LLM discussions]: https://github.com/projectmesa/mesa-llm/discussions
+[issue]: https://github.com/projectmesa/mesa-llm/issues
 
 **To submit a contribution**
 
@@ -33,7 +33,7 @@ In no particular order, examples include:
 - Describe the change w/ ticket number(s) that the code fixes.
 
 [Clone your repository]: https://help.github.com/articles/cloning-a-repository/
-[GH Actions build]: https://github.com/wang-boyu/mesa-llm/actions/workflows/ci.yml
+[GH Actions build]: https://github.com/projectmesa/mesa-llm/actions/workflows/ci.yml
 [Create a pull request]: https://help.github.com/articles/creating-a-pull-request/
 [pre-commit]: https://github.com/pre-commit/pre-commit
 [black]: https://github.com/psf/black
@@ -41,7 +41,7 @@ In no particular order, examples include:
 Testing and Code Standards
 --------------------------
 
-[![](https://codecov.io/gh/wang-boyu/mesa-llm/branch/main/graph/badge.svg)](https://codecov.io/gh/wang-boyu/mesa-llm) [![](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![](https://codecov.io/gh/projectmesa/mesa-llm/branch/main/graph/badge.svg)](https://codecov.io/gh/projectmesa/mesa-llm) [![](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 As part of our contribution process, we practice continuous integration and use GH Actions to help enforce best practices.
 
@@ -81,7 +81,7 @@ Licensing
 
 The license of this project is located in [LICENSE]. By submitting a contribution to this project, you are agreeing that your contribution will be released under the terms of this license.
 
-[LICENSE]: https://github.com/wang-boyu/mesa-llm/blob/main/LICENSE
+[LICENSE]: https://github.com/projectmesa/mesa-llm/blob/main/LICENSE
 
 Special Thanks
 --------------
