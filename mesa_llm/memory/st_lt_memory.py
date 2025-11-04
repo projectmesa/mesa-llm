@@ -101,15 +101,15 @@ class STLTMemory(Memory):
             return
 
         elif not self.short_term_memory[-1].content.get("step", None):
-            pre_step = self.short_term_memory.pop()
-            self.step_content.update(pre_step.content)
-            new_entry = MemoryEntry(
+            pre_step_entry = self.short_term_memory.pop()
+            self.step_content.update(pre_step_entry.content)
+            new_st_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
                 step=self.agent.model.steps,
             )
 
-            self.short_term_memory.append(new_entry)
+            self.short_term_memory.append(new_st_entry)
             self.step_content = {}
 
         # Consolidate memory if the short term memory is over capacity
