@@ -48,6 +48,12 @@ class MemoryMock(Memory):
     def get_communication_history(self) -> str:
         return ""
 
+    def process_step(self, pre_step: bool = False):
+        """
+        Mock implementation of process_step for testing purposes.
+        Since this is a test mock, we can use a simple pass implementation.
+        """
+
 
 class TestMemoryParent:
     """Test the Memory class"""
