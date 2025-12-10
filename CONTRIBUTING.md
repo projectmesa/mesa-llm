@@ -11,8 +11,8 @@ In no particular order, examples include:
 - Documentation improvements
 - Tutorials
 
-[Mesa-LLM discussions]: https://github.com/projectmesa/mesa-llm/discussions
-[issue]: https://github.com/projectmesa/mesa-llm/issues
+[Mesa-LLM discussions]: https://github.com/mesa/mesa-llm/discussions
+[issue]: https://github.com/mesa/mesa-llm/issues
 
 **To submit a contribution**
 
@@ -33,7 +33,7 @@ In no particular order, examples include:
 - Describe the change w/ ticket number(s) that the code fixes.
 
 [Clone your repository]: https://help.github.com/articles/cloning-a-repository/
-[GH Actions build]: https://github.com/projectmesa/mesa-llm/actions/workflows/ci.yml
+[GH Actions build]: https://github.com/mesa/mesa-llm/actions/workflows/ci.yml
 [Create a pull request]: https://help.github.com/articles/creating-a-pull-request/
 [pre-commit]: https://github.com/pre-commit/pre-commit
 [black]: https://github.com/psf/black
@@ -81,14 +81,14 @@ Licensing
 
 The license of this project is located in [LICENSE]. By submitting a contribution to this project, you are agreeing that your contribution will be released under the terms of this license.
 
-[LICENSE]: https://github.com/projectmesa/mesa-llm/blob/main/LICENSE
+[LICENSE]: https://github.com/mesa/mesa-llm/blob/main/LICENSE
 
 Special Thanks
 --------------
 
 A special thanks to the following projects who offered inspiration for this contributing file.
 
-- [Mesa](https://github.com/projectmesa/mesa/blob/main/CONTRIBUTING.md)
+- [Mesa](https://github.com/mesa/mesa/blob/main/CONTRIBUTING.md)
 - [Django](https://github.com/django/django/blob/master/CONTRIBUTING.rst)
 - [18F's FOIA](https://github.com/18F/foia-hub/blob/master/CONTRIBUTING.md)
 - [18F's Midas](https://github.com/18F/midas/blob/devel/CONTRIBUTING.md)

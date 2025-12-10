@@ -111,4 +111,4 @@ A similar model is also included with NetLogo:
 Wilensky, U. (2004). NetLogo Rebellion model. http://ccl.northwestern.edu/netlogo/models/Rebellion. Center for Connected Learning and Computer-Based Modeling, Northwestern University, Evanston, IL.
 
 You can also find Mesa's version of the model without using LLMs here:
-https://github.com/projectmesa/mesa/tree/main/mesa/examples/advanced/epstein_civil_violence
+https://github.com/mesa/mesa/tree/main/mesa/examples/advanced/epstein_civil_violence
