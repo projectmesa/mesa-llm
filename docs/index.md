@@ -66,6 +66,7 @@ hidden: true
 ---
 Introduction <self>
 API Documentation <apis/api_main>
+Examples <examples/index>
 ```
 
 ## Indices and tables
