@@ -78,9 +78,10 @@ class ModuleLLM:
         messages = []
 
         # Always include a system message. If no prompt provided, set content to None regardless of system_prompt
-        system_content = (
-            None if not prompt else (self.system_prompt if self.system_prompt else None)
-        )
+        if not prompt or self.system_prompt is None or self.system_prompt == "":
+            system_content = None
+        else:
+            system_content = self.system_prompt
         messages.append({"role": "system", "content": system_content})
 
         if prompt:
