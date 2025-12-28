@@ -16,8 +16,8 @@ dependencies = [
     "litellm",
     "terminal-style",
     "rich",
-    "pytest-asyncio",
     "tenacity",
+    "ollama",
 ]
 dynamic = ["version"]
 
@@ -32,7 +32,9 @@ dev = [
   "pytest-cov",
   "sphinx",
   "pytest-mock",
+  "pytest-asyncio",
 ]
+
 docs = [
   "sphinx",
   "ipython",
