@@ -111,6 +111,15 @@ class Memory(ABC):
         Get the communication history in a format that can be used for reasoning
         """
 
+    @abstractmethod
+    def process_step(self, pre_step: bool = False):
+        r"""
+        A function that is called before and after the step of the agent is called.
+        It is implemented to ensure that the memory is up to date when the agent is starting a new step.
+
+        /!\ If you consider that you do not need this function, you can write "pass" in its implementation.
+        """
+
     def add_to_memory(self, type: str, content: dict):
         """
         Add a new entry to the memory

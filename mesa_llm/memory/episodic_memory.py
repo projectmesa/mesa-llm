@@ -131,3 +131,14 @@ class EpisodicMemory(Memory):
                 if "message" in entry.content
             ]
         )
+
+    def process_step(self, pre_step: bool = False):
+        """
+        Process the step of the agent :
+        - Add the new entry to the memory
+        - Display the new entry
+        """
+        if pre_step:
+            self.add_to_memory(type="observation", content=self.step_content)
+            self.step_content = {}
+            return

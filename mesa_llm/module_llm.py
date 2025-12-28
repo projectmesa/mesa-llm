@@ -46,7 +46,7 @@ class ModuleLLM:
         self.system_prompt = system_prompt
         provider = self.llm_model.split("/")[0].upper()
 
-        if provider == "OLLAMA":
+        if provider in ["OLLAMA", "OLLAMA_CHAT"]:
             if self.api_base is None:
                 self.api_base = "http://localhost:11434"
                 console.print(
@@ -77,7 +77,7 @@ class ModuleLLM:
         """
         messages = []
 
-        # Always include a system message. Use empty string if no system prompt provided.
+        # Always include a system message. Default to empty string if no system prompt to support Ollama
         system_content = self.system_prompt if self.system_prompt else ""
         messages.append({"role": "system", "content": system_content})
 
