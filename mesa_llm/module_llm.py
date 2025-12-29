@@ -46,7 +46,7 @@ class ModuleLLM:
         self.system_prompt = system_prompt
         provider = self.llm_model.split("/")[0].upper()
 
-        if provider == "OLLAMA":
+        if provider in ["OLLAMA", "OLLAMA_CHAT"]:
             if self.api_base is None:
                 self.api_base = "http://localhost:11434"
                 console.print(
