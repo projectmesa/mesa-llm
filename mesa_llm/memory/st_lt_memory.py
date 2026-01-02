@@ -101,8 +101,8 @@ class STLTMemory(Memory):
             return
 
         elif not self.short_term_memory[-1].content.get("step", None):
-            pre_step = self.short_term_memory.pop()
-            self.step_content.update(pre_step.content)
+            pre_step_entry = self.short_term_memory.pop()
+            self.step_content.update(pre_step_entry.content)
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
@@ -112,21 +112,21 @@ class STLTMemory(Memory):
             self.short_term_memory.append(new_entry)
             self.step_content = {}
 
-        # Consolidate memory if the short term memory is over capacity
-        if (
-            len(self.short_term_memory)
-            > self.capacity + (self.consolidation_capacity or 0)
-            and self.consolidation_capacity
-        ):
-            self.short_term_memory.popleft()
-            self._update_long_term_memory()
+            # Consolidate memory if the short term memory is over capacity
+            if (
+                len(self.short_term_memory)
+                > self.capacity + (self.consolidation_capacity or 0)
+                and self.consolidation_capacity
+            ):
+                self.short_term_memory.popleft()
+                self._update_long_term_memory()
 
-        elif len(self.short_term_memory) > self.capacity:
-            self.short_term_memory.popleft()
+            elif len(self.short_term_memory) > self.capacity:
+                self.short_term_memory.popleft()
 
-        # Display the new entry
-        if self.display:
-            new_entry.display()
+            # Display the new entry
+            if self.display:
+                new_entry.display()
 
     def format_long_term(self) -> str:
         """
