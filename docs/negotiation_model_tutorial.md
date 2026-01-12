@@ -323,7 +323,7 @@ Message                                                                         
 │ minimum price is 60, but this might not be directly related to my actions.          │
 │ Therefore, I decide to move one step in a random direction to gather more           │
 │ information about the environment and potentially find some clues or objects.       │
-│    └── action : move_one_step    
+│    └── action : move_one_step
 ```
 ## About Actions in the Output
 `ReActReasoning` produces both a reasoning trace and an action suggestion.
@@ -336,18 +336,18 @@ In this tutorial:
 ## Exercises
 Try the following exercises to better understand agent communication and reasoning:
 
-1. **Modify the seller’s message**  
+1. **Modify the seller’s message**
    Change the content of the message sent by the seller and observe how buyer
    reasoning changes.
 
-2. **Add another buyer**  
+2. **Add another buyer**
    Create a third buyer agent with a different budget and compare its reasoning
    with the existing buyers.
 
-3. **Change buyer budgets**  
+3. **Change buyer budgets**
    Adjust buyer budgets and observe how this affects negotiation-related reasoning.
 
-4. **Increase the number of steps**  
+4. **Increase the number of steps**
    Run the `Model` for more steps and observe how agent messaging influences
    reasoning over time.
 
