@@ -3,7 +3,7 @@
 ## Tutorial Overview
 This tutorial introduces mesa-llm by walking through the construction of a simple language-driven agent model built on top of Mesa. Mesa-llm enables agents to reason using natural language while preserving Mesa’s standard execution model. If it's your first time using mesa, we suggest starting with the classic [creating your first model tutorials](https://mesa.readthedocs.io/latest/tutorials/0_first_model.html) before diving into mesa-llm.
 
-The goal of this tutorial is **not** to build a complex simulation or environment.  
+The goal of this tutorial is **not** to build a complex simulation or environment.
 Instead, it focuses on the **core idea** behind mesa-llm:
 
 > How language-based reasoning can be embedded into Mesa’s standard agent execution workflow.
@@ -41,7 +41,7 @@ At each simulation step:
 3. The agent reasons using an LLM
 4. The reasoning output is printed
 
-This tutorial **focuses on reasoning output only**.  
+This tutorial **focuses on reasoning output only**.
 Action execution and environments are intentionally deferred to later tutorials.
 
 ## Tutorial Setup
@@ -167,7 +167,7 @@ class SimpleModel(Model):
     def step(self):
         print(f"\nModel step {self.steps}")
         self.agents.shuffle_do("step")
-```        
+```
 
 ## Running the Model
 To run the simulation:
@@ -209,19 +209,19 @@ This is expected behavior when using ReActReasoning, which always produces both 
 
 Try the following small exercises to better understand how agent reasoning works in this model:
 
-1. **Modify the prompt**  
+1. **Modify the prompt**
    Change the prompt passed to the agent and observe how the reasoning trace changes.
    For example, encourage the agent to be more cautious or more verbose.
 
-2. **Add another agent**  
+2. **Add another agent**
    Create a second agent with a different initial `internal_state` and compare how
    their reasoning differs during the same model steps.
 
-3. **Extend the observation**  
+3. **Extend the observation**
    Add an additional value to the observation dictionary passed to the reasoning module
    and see how it affects the agent’s reasoning output.
 
-4. **Increase the number of steps**  
+4. **Increase the number of steps**
    Run the model for more steps and observe how the reasoning evolves over time.
 
 In this tutorial, actions are not executed and are shown only as part of the reasoning
