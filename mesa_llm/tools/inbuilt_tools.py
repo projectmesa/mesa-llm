@@ -42,6 +42,11 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         Returns:
             A string confirming the result of the movement attempt.
     """
+    if direction not in direction_map:
+        raise ValueError(
+            f"Invalid direction '{direction}'."
+            f"Must be one of {list(direction_map.keys())}"
+        )
     dx, dy = direction_map[direction]
     x, y = agent.pos
     new_pos = (x + dx, y + dy)

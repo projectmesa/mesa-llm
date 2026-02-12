@@ -57,7 +57,7 @@ class TestModuleLLM:
         llm = ModuleLLM(llm_model="openai/gpt-4o")
         messages = llm.get_messages("Hello, how are you?")
         assert messages == [
-            {"role": "system", "content": None},
+            {"role": "system", "content": ""},
             {"role": "user", "content": "Hello, how are you?"},
         ]
 
@@ -66,7 +66,7 @@ class TestModuleLLM:
             ["Hello, how are you?", "What is the weather in Tokyo?"]
         )
         assert messages == [
-            {"role": "system", "content": None},
+            {"role": "system", "content": ""},
             {"role": "user", "content": "Hello, how are you?"},
             {"role": "user", "content": "What is the weather in Tokyo?"},
         ]
@@ -92,8 +92,9 @@ class TestModuleLLM:
         ]
 
         # Test get_messages no system prompt and no prompt
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
         messages = llm.get_messages(prompt=None)
-        assert messages == [{"role": "system", "content": None}]
+        assert messages == [{"role": "system", "content": ""}]
 
     def test_generate(self, monkeypatch):
         # Prevent network calls by stubbing litellm completion

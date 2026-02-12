@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 from mesa.discrete_space import OrthogonalMooreGrid
 from mesa.space import MultiGrid, SingleGrid
 
@@ -107,3 +108,15 @@ def test_speak_to_records_on_recipients(mocker):
 
     # Return string contains sender and recipients list
     assert "10" in ret and "11" in ret and "12" in ret and message in ret
+
+
+def test_move_one_step_invalid_direction():
+    model = DummyModel()
+    model.grid = MultiGrid(width=4, height=4, torus=False)
+
+    agent = DummyAgent(unique_id=3, model=model)
+    model.agents.append(agent)
+    model.grid.place_agent(agent, (2, 2))
+
+    with pytest.raises(ValueError):
+        move_one_step(agent, "north east")

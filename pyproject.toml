@@ -16,8 +16,8 @@ dependencies = [
     "litellm",
     "terminal-style",
     "rich",
-    "pytest-asyncio",
     "tenacity",
+    "ollama",
 ]
 dynamic = ["version"]
 
@@ -32,7 +32,9 @@ dev = [
   "pytest-cov",
   "sphinx",
   "pytest-mock",
+  "pytest-asyncio",
 ]
+
 docs = [
   "sphinx",
   "ipython",
@@ -65,6 +67,7 @@ addopts = "-ra -q"
 testpaths = [
     "tests",
 ]
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 line-length = 88
