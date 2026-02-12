@@ -20,7 +20,9 @@ from rich.table import Table
 
 
 class AgentViewer:
-    """Simple viewer for exploring agent behavior in recorded simulations."""
+    """
+    Interactive analysis tool for exploring recorded simulation data with rich terminal formatting and comprehensive agent behavior insights.
+    """
 
     def __init__(self, recording_path: str):
         self.recording_path = Path(recording_path)

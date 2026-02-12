@@ -31,7 +31,7 @@ direction_map = {
 @tool
 def move_one_step(agent: "LLMAgent", direction: str) -> str:
     """
-    Move the agent one step in the specified direction.
+    Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including SingleGrid, MultiGrid, OrthogonalGrids, and ContinuousSpace.
 
         Args:
             direction: The direction to move in. Must be one of:
@@ -61,7 +61,7 @@ def teleport_to_location(
     target_coordinates: list[int],
 ) -> str:
     """
-    Teleport the agent to specific (x, y) coordinates within the grid.
+    Instantly moves agents to specific [x, y] coordinates within grid boundaries. Useful for rapid repositioning or spawning mechanics. Validates coordinates are within environment bounds.
 
     Args:
         target_coordinates: Exactly two integers in the form [x, y] that fall inside the current environment bounds. Example: [3, 7]
@@ -91,7 +91,8 @@ def speak_to(
     agent: "LLMAgent", listener_agents_unique_ids: list[int], message: str
 ) -> str:
     """
-    Engages in a spoken conversation with the recipients, storing the contents as a message in their memory.
+    Enables agent-to-agent communication by sending messages to specified recipients. Messages are automatically added to recipients' memory systems for future reasoning context. Supports both single agent and multiple agent communication.
+
     Args:
         agent: The agent sending the message(conversation contents) (as a LLM, ignore this argument in function calling).
         listener_agents_unique_ids: The unique ids of the agents receiving the message

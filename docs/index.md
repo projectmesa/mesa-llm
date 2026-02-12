@@ -65,8 +65,8 @@ maxdepth: 2
 hidden: true
 ---
 Introduction <self>
-API Documentation <apis/api_main>
 Examples <examples>
+API Documentation <apis/api_main>
 ```
 
 ## Indices and tables

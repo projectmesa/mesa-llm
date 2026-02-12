@@ -2,7 +2,49 @@
 
 The reasoning system in Mesa-LLM provides different cognitive strategies for agents to analyze situations, make decisions, and plan actions. It forms the core intelligence layer that transforms observations into actionable plans using structured thinking approaches. The reasoning module enables agents to process environmental observations and memory context into executable action plans through various cognitive frameworks.
 
-## General Reasoning API
+## Usage in Mesa Simulations
+
+```python
+from mesa_llm.llm_agent import LLMAgent
+from mesa_llm.reasoning.cot import CoTReasoning
+
+class MyAgent(LLMAgent):
+   def __init__(self, model, api_key, **kwargs):
+      super().__init__(
+            model=model,
+            api_key=api_key,
+            reasoning=CoTReasoning,  # Specify reasoning strategy
+            **kwargs
+      )
+
+   def step(self):
+      # Generate observation and create plan using reasoning strategy
+      obs = self.generate_obs()
+      plan = self.reasoning.plan(
+            obs=obs,
+            selected_tools=["move_one_step", "speak_to"]
+      )
+      self.apply_plan(plan)
+
+# Strategy-specific configurations
+from mesa_llm.reasoning.react import ReActReasoning
+from mesa_llm.reasoning.rewoo import ReWOOReasoning
+
+# For ReWOO with multi-step planning
+plan = self.reasoning.plan(obs=obs, ttl=3)  # Plan valid for 3 steps
+
+# Parallel reasoning execution
+async def astep(self):
+   obs = self.generate_obs()
+   plan = await self.reasoning.aplan(
+      prompt=self.step_prompt,
+      obs=obs,
+      selected_tools=["move_one_step", "arrest_citizen"]
+   )
+   self.apply_plan(plan)
+```
+
+## Base abstractions
 
 ```{eval-rst}
 .. automodule:: mesa_llm.reasoning.reasoning
@@ -11,26 +53,21 @@ The reasoning system in Mesa-LLM provides different cognitive strategies for age
    :show-inheritance:
 ```
 
-## Chain-of-Thought Reasoning
+## Reasoning strategies
 
 ```{eval-rst}
 .. automodule:: mesa_llm.reasoning.cot
    :members:
+   :undoc-members:
    :show-inheritance:
-```
 
-## ReAct Reasoning
-
-```{eval-rst}
 .. automodule:: mesa_llm.reasoning.react
    :members:
+   :undoc-members:
    :show-inheritance:
-```
 
-## ReWOO Reasoning
-
-```{eval-rst}
 .. automodule:: mesa_llm.reasoning.rewoo
    :members:
+   :undoc-members:
    :show-inheritance:
 ```

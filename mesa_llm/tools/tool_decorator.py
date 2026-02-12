@@ -314,7 +314,7 @@ def tool(
     ignore_agent: bool = True,
 ):
     """
-    Decorate a function so it becomes an LLM-callable tool and is auto-registered.
+    Converts Python functions into LLM-compatible tools by automatically generating JSON schemas from type hints and docstrings. Handles parameter validation, type conversion, and integration with the global tool registry. This module automatically extracts parameter descriptions from Google-style docstrings, injects calling agents into functions expecting an `agent` parameter, and integrates with the global tool registry for automatic availability across all ToolManager instances.
 
     Args:
         fn: The function to decorate.

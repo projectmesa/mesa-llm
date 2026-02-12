@@ -1,7 +1,3 @@
-"""
-LLMAgent is the core agent class in Mesa-LLM that extends Mesa's base Agent class with Large Language Model capabilities. It provides a complete framework for creating intelligent agents that can reason, remember, communicate, and act in simulations using natural language processing.
-"""
-
 from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,

@@ -13,11 +13,26 @@ if TYPE_CHECKING:
 
 class ToolManager:
     """
-    ToolManager is used to register functions as tools through the decorator.
-    There can be multiple instances of ToolManager for different group of agents.
+    Manager for registering, organizing, and executing LLM-callable tools with per-agent customization. Supports both global tool registration and per-agent tool customization while maintaining a central registry. There can be multiple instances of ToolManager for different group of agents.
 
     Attributes:
-        tools: A dictionary of tools of the form {tool_name: tool_function}. E.g. {"get_current_weather": get_current_weather}.
+        - tools: A dictionary of tools of the form {tool_name: tool_function}. E.g. {"get_current_weather": get_current_weather}.
+        - **instances** (class-level list) - All ToolManager instances for global tool distribution
+
+    Methods:
+        - **register(fn)** - Register tool function to this manager
+        - **add_tool_to_all(fn)** - Add tool to all ToolManager instances
+        - **get_all_tools_schema(selected_tools=None)** → *list[dict]* - Get OpenAI-compatible schemas
+        - **call_tools(agent, llm_response)** → *list[dict]* - Execute LLM-recommended tools
+        - **has_tool(name)** → *bool* - Check if tool is registered
+
+    Tool Execution Flow:
+        1. **Tool Registration**: Functions decorated with `@tool` are automatically registered in the global registry
+        2. **Schema Generation**: Tool decorators analyze function signatures and docstrings to create function calling schemas
+        3. **LLM Integration**: Reasoning strategies receive tool schemas and can request specific tool calls
+        4. **Argument Validation**: ToolManager validates LLM-provided arguments against function signatures with automatic type coercion
+        5. **Execution**: Tools are called with validated arguments, including automatic agent parameter injection
+        6. **Result Handling**: Tool outputs are captured and added to agent memory for future reasoning
     """
 
     instances: list["ToolManager"] = []

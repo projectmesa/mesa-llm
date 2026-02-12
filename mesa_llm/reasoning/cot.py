@@ -8,7 +8,21 @@ if TYPE_CHECKING:
 
 class CoTReasoning(Reasoning):
     """
-    Use a chain of thought approach to decide the next action.
+    Chain of Thought reasoning with explicit step-by-step analysis before action execution. Uses structured numbered thoughts followed by tool execution. Integrates memory context for informed decision-making.
+
+    Attributes:
+        - **agent** (LLMAgent reference)
+
+    Methods:
+        - **plan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate synchronous plan with CoT reasoning
+        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan with CoT reasoning
+
+    Reasoning Format:
+        Thought 1: [Initial reasoning based on observation]
+        Thought 2: [How memory informs the situation]
+        Thought 3: [Possible alternatives or risks]
+        Thought 4: [Final decision and justification]
+        Action: [The action you decide to take]
     """
 
     def __init__(self, agent: "LLMAgent"):

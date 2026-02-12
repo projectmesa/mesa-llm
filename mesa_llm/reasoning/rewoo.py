@@ -12,7 +12,17 @@ if TYPE_CHECKING:
 
 class ReWOOReasoning(Reasoning):
     """
-    ReWOO is a reasoning approach that creates a plan that can be executed without needing new observations.
+    Reasoning Without Observation for multi-step planning without environmental feedback. Enables multi-step planning without requiring immediate environmental feedback. Plans remain valid across multiple simulation steps with extended TTL. Reduces computational overhead through strategic long-term thinking.
+
+    Attributes:
+        - **agent** (LLMAgent reference)
+        - **remaining_tool_calls** (int) - Number of tool calls remaining in current plan
+        - **current_plan** (Plan) - Currently active multi-step plan
+        - **current_obs** (Observation) - Last observation used for planning
+
+    Methods:
+        - **plan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate synchronous plan with ReWOO reasoning
+        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan with ReWOO reasoning
     """
 
     def __init__(self, agent: "LLMAgent"):

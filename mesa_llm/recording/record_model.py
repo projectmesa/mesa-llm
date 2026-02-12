@@ -45,6 +45,21 @@ def _attach_recorder_to_agents(model: Model, recorder: SimulationRecorder):
 def record_model(
     cls: type[Model] | None = None, **kwargs
 ) -> Callable[[type[Model]], type[Model]] | type[Model]:
+    """
+    Class decorator that automatically instruments Mesa Model subclasses with SimulationRecorder functionality. Provides seamless integration without manual recorder setup.
+
+    Features:
+        - Automatically creates and attaches SimulationRecorder after model initialization
+        - Attaches recorder to all LLMAgent instances in the model
+        - Wraps model.step() to record step start/end events
+        - Provides save_recording() convenience method
+        - Registers automatic save on program exit
+
+    Parameters:
+        - **cls** (*type[Model] | None*) - The Model class to decorate. If None, returns a wrapper for use as a decorator with kwargs.
+        - **kwargs** - Forwarded to SimulationRecorder constructor for customization
+    """
+
     if cls is None:
         # Decorator was called with optional kwargs -> return wrapper awaiting the class
         return lambda actual_cls: record_model(actual_cls, **kwargs)  # type: ignore[misc]

@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class MemoryEntry:
+    """
+    A data structure that stores individual memory records with content, step number, and agent reference. Each entry includes `rich` formatting for display. Content is a nested dictionary of arbitrary depth containing the entry's information. Each entry is designed to hold all the information of a given step for an agent, but can also be used to store a single event if needed.
+    """
+
     content: dict
     step: int
     agent: "LLMAgent"
@@ -75,6 +79,11 @@ class Memory(ABC):
         agent : the agent that the memory belongs to
         llm_model : the model to use for the summarization if used
         display : whether to display the memory
+
+    Content Addition
+        - Before each agent step, the agent can add new events to the memory through `add_to_memory(type, content)` so that the memory can be used to reason about the most recent events as well as the past events.
+        - During the step, actions, messages, and plans are added to the memory through `add_to_memory(type, content)`
+        - At the end of the step, the memory is processed via `process_step()`, managing when memory entries are added,consolidated, displayed, or removed
     """
 
     def __init__(

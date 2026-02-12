@@ -1,7 +1,3 @@
-"""
-ModuleLLM provides a unified interface for integrating Large Language Models from multiple providers into Mesa-LLM agents. It abstracts away provider-specific implementation details while offering both synchronous and asynchronous generation capabilities with support for function calling, structured outputs, and automatic retry logic.
-"""
-
 import os
 
 from dotenv import load_dotenv

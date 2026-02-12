@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 @dataclass
 class Observation:
     """
-    Snapshot of everything the agent can see in this step.
+    A structured snapshot containing the agent's current step, self-state (internal attributes, location, system context), and local-state (neighboring agents and their properties). This provides complete situational awareness for decision-making.
 
     Attributes:
         step (int): The current simulation time step when the observation is made.
@@ -35,7 +35,9 @@ class Observation:
 
 @dataclass
 class Plan:
-    """LLM-generated plan that can span ≥1 steps."""
+    """
+    An LLM-generated plan containing the step number, complete LLM response with tool calls, and a time-to-live (TTL) indicating how many steps the plan remains valid. Plans encapsulate both reasoning content and executable actions.
+    """
 
     step: int  # step when the plan was generated
     llm_plan: Any  # complete LLM response message object (contains both content and tool_calls)
@@ -51,6 +53,26 @@ class Plan:
 
 
 class Reasoning(ABC):
+    """
+    Abstract base class providing the interface for all reasoning strategies, with both synchronous `plan()` and asynchronous `aplan()` methods for parallel execution scenarios.
+
+
+    Attributes:
+        - **agent** (LLMAgent reference)
+
+    Methods:
+        - **abstract plan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate synchronous plan
+        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan
+
+
+    Reasoning Flow:
+        1. Agent generates **observation** of current situation through `generate_obs()`
+        2. Reasoning strategies access **memory** to inform decisions
+        3. Selected reasoning approach processes observation and memory into a structured **plan**
+        4. Plans are automatically converted to **tool schemas** for LLM function calling
+        5. Tool manager **executes the planned actions** in the simulation environment
+    """
+
     def __init__(self, agent: "LLMAgent"):
         self.agent = agent
 

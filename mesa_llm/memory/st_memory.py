@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class ShortTermMemory(Memory):
     """
-    Purely short-term memory class that remembers only the last n memory entries.
+    Simple short-term memory implementation without consolidation (stores recent entries up to capacity limit). Same functionality as `STLTMemory` but without the long-term memory and consolidation mechanism.
 
     Attributes:
         agent : the agent that the memory belongs to

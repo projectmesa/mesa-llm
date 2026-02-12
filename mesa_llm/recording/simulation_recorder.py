@@ -16,7 +16,18 @@ from typing import Any
 
 @dataclass
 class SimulationEvent:
-    """A single recorded event in the simulation."""
+    """
+    Dataclass representing a single recorded event in the simulation with complete context and metadata.
+
+    Attributes:
+        - **event_id** (*str*) - Unique identifier for this event
+        - **timestamp** (*datetime*) - UTC timestamp when event occurred
+        - **step** (*int*) - Simulation step number
+        - **agent_id** (*int | None*) - Agent associated with event (None for model events)
+        - **event_type** (*str*) - Type of event (observation, plan, action, message, state_change, etc.)
+        - **content** (*dict*) - Event-specific data and information
+        - **metadata** (*dict*) - Additional contextual metadata
+    """
 
     event_id: str
     timestamp: datetime
@@ -32,6 +43,13 @@ class SimulationRecorder:
     Centralized recorder for capturing all simulation events for post-analysis.
     It captures agent observations, plans, actions, messages, state changes, etc.
     as well as model-level events and transitions.
+
+    Attributes:
+        - **model** - Reference to the Mesa model being recorded
+        - **events** - List of all recorded SimulationEvent objects
+        - **simulation_id** - Unique identifier for this recording session
+        - **start_time** - Recording start timestamp
+        - **simulation_metadata** - Recording metadata and statistics
     """
 
     def __init__(
@@ -41,6 +59,16 @@ class SimulationRecorder:
         record_state_changes: bool = True,
         auto_save_interval: int | None = None,
     ):
+        """
+        Initialize the simulation recorder.
+
+        Parameters:
+            - **model** (*Model*) - Mesa model instance to record
+            - **output_dir** (*str*) - Directory for saving recordings (default: "recordings")
+            - **record_state_changes** (*bool*) - Whether to track agent state changes (default: True)
+            - **auto_save_interval** (*int | None*) - Automatic save frequency in events (default: None)
+        """
+
         self.model = model
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)

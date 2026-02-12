@@ -15,6 +15,17 @@ class ReActOutput(BaseModel):
 
 
 class ReActReasoning(Reasoning):
+    """
+    Reasoning + Acting with alternating reasoning and action in flexible conversational format. Combines thinking and acting in natural language flow. Less structured than CoT but incorporates memory and communication history.
+
+    Attributes:
+        - **agent** (LLMAgent reference)
+
+    Methods:
+        - **plan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate synchronous plan with ReAct reasoning
+        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan with ReAct reasoning
+    """
+
     def __init__(self, agent: "LLMAgent"):
         super().__init__(agent=agent)
 

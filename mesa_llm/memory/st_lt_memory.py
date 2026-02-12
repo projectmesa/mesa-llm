@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class STLTMemory(Memory):
     """
-    Create a memory object that stores the agent's short and long term memory
+    Implements a dual-memory system where recent experiences are stored in short-term memory with limited capacity, and older memories are consolidated into long-term summaries using LLM-based summarization.
 
     Attributes:
         agent : the agent that the memory belongs to
@@ -18,6 +18,11 @@ class STLTMemory(Memory):
         - A short term memory who stores the n (int) most recent interactions (observations, planning, discussions)
         - A long term memory that is a summary of the memories that are removed from short term memory (summary
         completed/refactored as it goes)
+
+    Logic behind the implementation
+        - **Short-term capacity**: Configurable number of recent memory entries (default: short_term_capacity = 5)
+        - **Consolidation**: When capacity is exceeded, oldest entries are summarized into long-term memory (number of entries to summarize is configurable, default: consolidation_capacity = 3)
+        - **LLM Summarization**: Uses a separate LLM instance to create meaningful summaries of past experiences
 
     """
 
