@@ -80,9 +80,11 @@ if __name__ == "__main__":
     def ShowSalesButton(*args, **kwargs):
         show = solara.use_reactive(False)
         df = solara.use_memo(
-            lambda: model.datacollector.get_model_vars_dataframe()
-            if show.value
-            else pd.DataFrame(),
+            lambda: (
+                model.datacollector.get_model_vars_dataframe()
+                if show.value
+                else pd.DataFrame()
+            ),
             [show.value],
         )
 
