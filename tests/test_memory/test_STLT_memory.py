@@ -1,5 +1,5 @@
 from collections import deque
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from mesa_llm.memory.memory import MemoryEntry
 from mesa_llm.memory.st_lt_memory import STLTMemory
@@ -143,3 +143,42 @@ class TestSTLTMemory:
 
         # Verify last observation is tracked
         assert memory.last_observation == obs2
+
+    def test_batch_size_fix(self, mock_agent):
+        """
+        A minimal test to check whether stlt memory pops out the consolidation batches properly.
+        """
+        new_entry = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=2,
+            consolidation_capacity=3,
+            llm_model="provider/test_model",
+        )
+        new_entry.llm.generate = Mock(return_value="summary")
+        new_entry.agent.model.steps = 0
+
+        # Populate with 5 sample values
+        for i in range(5):
+            new_entry.short_term_memory.append(
+                MemoryEntry(agent=new_entry.agent, content={"v": i}, step=i)
+            )
+
+        # Add the 6th item via process_step to trigger the logic
+        # New state: size will be 6. (6 > 5) triggers consolidation.
+
+        new_entry.step_content = {"v": 5}
+
+        new_entry.process_step(pre_step=True)
+        new_entry.agent.model.steps = 5
+        new_entry.process_step(pre_step=False)
+
+        # We started with 6 items total
+        # If the fix works: 6 - 3 (Batch) = 3 items should remain.
+        # If the bug exists: 6 - 1 (Old behavior) = 5 items will remain.
+
+        actual_count = len(new_entry.short_term_memory)
+        print(actual_count)
+        assert actual_count == 3, (
+            f"FAILED: Expected 3 items left, but found {actual_count}."
+            f"The fix loop did not remove the full batch of 3!"
+        )

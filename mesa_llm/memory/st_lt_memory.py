@@ -134,7 +134,8 @@ class STLTMemory(Memory):
             > self.capacity + (self.consolidation_capacity or 0)
             and self.consolidation_capacity
         ):
-            self.short_term_memory.popleft()
+            for _ in range(self.consolidation_capacity):
+                self.short_term_memory.popleft()
             should_consolidate = True
 
         elif (
