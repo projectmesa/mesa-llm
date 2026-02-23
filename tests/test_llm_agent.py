@@ -33,8 +33,9 @@ def test_apply_plan_adds_to_memory(monkeypatch):
 
             x, y = pos
 
-            self.grid.place_agent(agents[0], (x, y))
-            return agents[0]
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
 
     model = DummyModel()
     agent = model.add_agent((1, 1))
@@ -86,8 +87,9 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
                 internal_state=["test_state"],
             )
             x, y = pos
-            self.grid.place_agent(agents[0], (x, y))
-            return agents[0]
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
 
     model = DummyModel()
 
@@ -143,8 +145,9 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
                 internal_state=["test_state"],
             )
             x, y = pos
-            self.grid.place_agent(agents[0], (x, y))
-            return agents[0]
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
 
     model = DummyModel()
     sender = model.add_agent((0, 0))
@@ -202,8 +205,9 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
             )
 
             x, y = pos
-            self.grid.place_agent(agents[0], (x, y))
-            return agents[0]
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
 
     model = DummyModel()
     agent = model.add_agent((1, 1))
@@ -248,8 +252,9 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
                 internal_state=["test_state"],
             )
             x, y = pos
-            self.grid.place_agent(agents[0], (x, y))
-            return agents[0]
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
 
     model = DummyModel()
 
@@ -300,7 +305,7 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
         system_prompt="test",
         vision=-1,
         internal_state=[],
-    )[0]
+    ).to_list()[0]
 
     calls = {"pre": 0, "post": 0}
 
