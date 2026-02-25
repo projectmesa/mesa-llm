@@ -36,7 +36,7 @@ pip install -U -e git+https://github.com/YOUR_FORK/mesa-llm@YOUR_BRANCH#egg=mesa
 
 For more help on using Mesa-LLM, check out the following resources:
 
-- [Introductory Tutorial](https://mesa-llm.readthedocs.io/en/stable/first_model.html)
+- [Getting Started](http://mesa-llm.readthedocs.io/en/stable/getting_started.html)
 - [Docs](http://mesa-llm.readthedocs.io/)
 - [Mesa-LLM Discussions](https://github.com/mesa/mesa-llm/discussions)
 - [PyPI](https://pypi.org/project/mesa-llm/)

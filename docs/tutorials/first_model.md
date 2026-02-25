@@ -1,23 +1,23 @@
-# Creating Your First mesa-llm Model
+# Creating Your First Mesa-LLM Model
 
 ## Tutorial Overview
-This tutorial introduces mesa-llm by walking through the construction of a simple language-driven agent model built on top of Mesa. Mesa-llm enables agents to reason using natural language while preserving Mesa’s standard execution model. If it's your first time using mesa, we suggest starting with the classic [creating your first model tutorials](https://mesa.readthedocs.io/latest/tutorials/0_first_model.html) before diving into mesa-llm.
+This tutorial introduces Mesa-LLM by walking through the construction of a simple language-driven agent model built on top of Mesa. Mesa-LLM enables agents to reason using natural language while preserving Mesa’s standard execution model. If it's your first time using mesa, we suggest starting with the classic [creating your first model tutorials](https://mesa.readthedocs.io/en/stable/tutorials/0_first_model.html) before diving into Mesa-LLM.
 
 The goal of this tutorial is **not** to build a complex simulation or environment.
-Instead, it focuses on the **core idea** behind mesa-llm:
+Instead, it focuses on the **core idea** behind Mesa-LLM:
 
 > How language-based reasoning can be embedded into Mesa’s standard agent execution workflow.
 
 By the end of this tutorial, you will understand:
 - What `LLMAgent` is
-- How mesa-llm integrates with Mesa models
+- How Mesa-LLM integrates with Mesa models
 - How agents perform language-based reasoning at each step
 - Why some reasoning strategies also suggest actions
 - How to structure a clean, extensible starting model
 
-## About mesa-llm
+## About Mesa-LLM
 
-[Mesa LLM](https://github.com/mesa/mesa-llm) is a set of tools that integrates Large Language Models (LLMs) with [Agent-based modeling](https://en.wikipedia.org/wiki/Agent-based_model) using the Mesa framework. Agents use natural language to reason about their state and prompts.
+[Mesa-LLM](https://github.com/mesa/mesa-llm) is a set of tools that integrates Large Language Models (LLMs) with [Agent-based modeling](https://en.wikipedia.org/wiki/Agent-based_model) using the Mesa framework. Agents use natural language to reason about their state and prompts.
 
 This approach is particularly useful for exploring how complex or emergent
 behavior can arise from language-driven agents in simulated systems.
@@ -25,7 +25,7 @@ By combining Mesa’s structured simulation framework with LLM-based reasoning,
 Mesa-LLM allows researchers and developers to experiment with more flexible,
 human-like agent behavior.
 
-While mesa-llm adds:
+While Mesa-LLM adds:
 - Prompt-driven reasoning
 - Reasoning strategies (e.g. ReAct)
 - Optional memory components for contextual reasoning across steps
@@ -48,15 +48,15 @@ Action execution and environments are intentionally deferred to later tutorials.
 ## Tutorial Setup
 Create and activate a virtual environment. Python version 3.12 or higher is required.
 
-## Install mesa-llm and required packages
+## Install Mesa-LLM and required packages
 
-Install mesa-llm
+Install Mesa-LLM
 
 ```bash
 pip install -U mesa-llm
 ```
 
-Mesa-llm pre-releases can be installed with:
+Mesa-LLM pre-releases can be installed with:
 ```bash
 pip install -U --pre mesa-llm
 ```
@@ -72,7 +72,7 @@ pip install -U -e git+https://github.com/YOUR_FORK/mesa-llm@YOUR_BRANCH#egg=mesa
 ```
 
 ## Building the Model
-After mesa-llm is installed, a 'model' can be built.
+After Mesa-LLM is installed, a 'model' can be built.
 This tutorial can be followed in a regular Python script or in a [Jupyter](https://jupyter.org/) notebook.
 
 
@@ -135,7 +135,7 @@ class SimpleAgent(LLMAgent):
 The 'model' manages agent creation and advances the simulation.
 
 'Agent' are created using the `create_agents()` helper provided by Mesa.
-mesa-llm integrates with this mechanism by allowing `LLMAgent` to be used
+Mesa-LLM integrates with this mechanism by allowing `LLMAgent` to be used
 wherever a standard Mesa `Agent` is expected.
 
 `LLMAgent` is a thin wrapper around Mesa’s base `Agent` class, which is why

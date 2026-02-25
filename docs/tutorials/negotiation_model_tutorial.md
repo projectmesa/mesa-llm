@@ -1,9 +1,9 @@
-# Negotiation Model Tutorial (mesa-llm)
+# Negotiation Model Tutorial
 
 ## About This Tutorial
 
 This tutorial is inspired by the official
-[Mesa-llm Negotiation Example](https://github.com/mesa/mesa-llm/tree/main/examples/negotiation)
+[Mesa-LLM Negotiation Example](https://github.com/mesa/mesa-llm/tree/main/examples/negotiation)
 
 The goal here is **not to replicate** the original example, but to present a **simplified and tutorial-friendly version** that focuses on reasoning structure and agent interaction.
 
@@ -13,7 +13,7 @@ Key differences from the original example include:
 - No spatial environment or grid
 - Emphasis on understanding ReAct reasoning output
 
-This makes the example easier to follow for new users while still demonstrating core mesa-llm concepts.
+This makes the example easier to follow for new users while still demonstrating core Mesa-LLM concepts.
 
 ## Model Description
 
@@ -37,9 +37,9 @@ This `Model` simulates a basic negotiation scenario involving:
 ## Tutorial Setup
 Ensure you are using Python 3.12 or later.
 
-## Install mesa-llm and required packages
+## Install Mesa-LLM and required packages
 
-Install mesa-llm
+Install Mesa-LLM
 
 ```bash
 pip install -U mesa-llm
@@ -62,7 +62,7 @@ The console output displays the internal reasoning traces.
 
 ## Agent Messaging
 In negotiation scenarios, agents need to exchange information.
-mesa-llm supports agent-to-agent messaging, allowing agents to communicate
+Mesa-LLM supports agent-to-agent messaging, allowing agents to communicate
 explicitly rather than relying on shared state.
 
 In this tutorial:

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| CI/CD | [![GitHub CI](https://github.com/mesa/mesa-llm/workflows/build/badge.svg)](https://github.com/mesa/mesa-llm/actions) [![Read the Docs](https://readthedocs.org/projects/mesa-llm/badge/?version=stable)](https://mesa-llm.readthedocs.io/stable) [![Codecov](https://codecov.io/gh/projectmesa/mesa-llm/branch/main/graph/badge.svg)](https://codecov.io/gh/projectmesa/mesa-llm) |
+| CI/CD | [![GitHub CI](https://github.com/mesa/mesa-llm/workflows/build/badge.svg)](https://github.com/mesa/mesa-llm/actions) [![Read the Docs](https://readthedocs.org/projects/mesa-llm/badge/?version=stable)](https://mesa-llm.readthedocs.io/) [![Codecov](https://codecov.io/gh/projectmesa/mesa-llm/branch/main/graph/badge.svg)](https://codecov.io/gh/projectmesa/mesa-llm) |
 | Package | [![PyPI](https://img.shields.io/pypi/v/mesa-llm.svg)](https://pypi.org/project/mesa-llm) [![PyPI - License](https://img.shields.io/pypi/l/mesa-llm)](https://pypi.org/project/mesa-llm/) [![PyPI - Downloads](https://img.shields.io/pypi/dw/mesa-llm)](https://pypistats.org/packages/mesa-llm) |
 | Meta | [![linting - Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Hatch project](https://img.shields.io/badge/%F0%9F%A5%9A-Hatch-4051b5.svg)](https://github.com/pypa/hatch) |
 | Chat | [![chat](https://img.shields.io/matrix/mesa-llm:matrix.org?label=chat&logo=Matrix)](https://matrix.to/#/#mesa-llm:matrix.org) |
@@ -36,10 +36,23 @@ pip install -U -e git+https://github.com/YOUR_FORK/mesa-llm@YOUR_BRANCH#egg=mesa
 
 For more help on using Mesa-LLM, check out the following resources:
 
-- [Introductory Tutorial](http://mesa-llm.readthedocs.io/stable/tutorials/intro_tutorial.html)
-- [Docs](http://mesa-llm.readthedocs.io/stable/)
+- [Getting Started](http://mesa-llm.readthedocs.io/en/stable/getting_started.html)
+- [Docs](http://mesa-llm.readthedocs.io/)
 - [Mesa-LLM Discussions](https://github.com/mesa/mesa-llm/discussions)
 - [PyPI](https://pypi.org/project/mesa-llm/)
+
+## Using Mesa-LLM
+
+Mesa-LLM supports the following LLM models :
+
+- OpenAI
+- Anthropic
+- xAI
+- Huggingface
+- Ollama
+- OpenRouter
+- NovitaAI
+- Gemini
 
 ## Contributing to Mesa-LLM
 
@@ -57,18 +70,14 @@ A feature is most likely to be added if you build it!
 
 Don't forget to check out the [Contributors guide](https://github.com/mesa/mesa-llm/blob/main/CONTRIBUTING.md).
 
-
-
 ```{toctree}
 ---
 maxdepth: 2
 hidden: true
 ---
-Introduction <self>
-Overview <overview>
 Getting Started <getting_started>
-First Model Tutorial <first_model>
-Negotiation Model Tutorial <negotiation_model_tutorial>
+Overview <overview>
+Tutorials <tutorials/index>
 Examples <examples>
 API Documentation <apis/api_main>
 ```
