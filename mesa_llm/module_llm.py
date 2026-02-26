@@ -1,11 +1,14 @@
 import logging
 import os
+from typing import Any
 
 from dotenv import load_dotenv
 from litellm import acompletion, completion, litellm
 from litellm.exceptions import (
     APIConnectionError,
+    InternalServerError,
     RateLimitError,
+    ServiceUnavailableError,
     Timeout,
 )
 from tenacity import AsyncRetrying, retry, retry_if_exception_type, wait_exponential
@@ -14,6 +17,8 @@ RETRYABLE_EXCEPTIONS = (
     APIConnectionError,
     Timeout,
     RateLimitError,
+    InternalServerError,
+    ServiceUnavailableError,
 )
 
 load_dotenv()
@@ -103,7 +108,7 @@ class ModuleLLM:
         tool_schema: list[dict] | None = None,
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
-    ) -> str:
+    ) -> Any:
         """
         Generate a response from the LLM using litellm based on the prompt
 
@@ -114,7 +119,7 @@ class ModuleLLM:
             response_format: The format of the response
 
         Returns:
-            The response from the LLM
+            The completion response object from litellm (ModelResponse)
         """
 
         messages = self.get_messages(prompt)
@@ -148,9 +153,12 @@ class ModuleLLM:
         tool_schema: list[dict] | None = None,
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
-    ) -> str:
+    ) -> Any:
         """
         Asynchronous version of generate() method for parallel LLM calls.
+
+        Returns:
+            The completion response object from litellm (ModelResponse)
         """
         messages = self.get_messages(prompt)
         async for attempt in AsyncRetrying(
