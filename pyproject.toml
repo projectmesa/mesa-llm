@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "Mesa-LLM"
 description = "Generative Agent-Based Modeling with Large Language Models Empowered Agents"
 license = { text = "MIT" }
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
   { name = "Mesa Team", email = "maintainers@projectmesa.dev" },
 ]
