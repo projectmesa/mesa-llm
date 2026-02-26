@@ -156,7 +156,10 @@ class LLMAgent(Agent):
         if self.vision is not None and self.vision > 0:
             if isinstance(self.model.grid, SingleGrid | MultiGrid):
                 neighbors = self.model.grid.get_neighbors(
-                    tuple(self.pos), moore=True, include_center=False, radius=int(self.vision)
+                    tuple(self.pos),
+                    moore=True,
+                    include_center=False,
+                    radius=int(self.vision),
                 )
             elif isinstance(
                 self.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
