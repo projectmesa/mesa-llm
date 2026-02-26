@@ -4,7 +4,7 @@ import re
 
 import pytest
 from mesa.model import Model
-from mesa.space import MultiGrid
+from mesa.space import ContinuousSpace, MultiGrid
 
 from mesa_llm import Plan
 from mesa_llm.llm_agent import LLMAgent
@@ -318,3 +318,31 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
     assert calls["pre"] == 1
     assert calls["post"] == 1
     assert agent.user_called is True
+
+
+def test_generate_obs_continuous_space(monkeypatch):
+    """Test observation construction in ContinuousSpace."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__()
+            self.grid = ContinuousSpace(100, 100, True)
+
+    model = DummyModel()
+    agent = LLMAgent(
+        model=model,
+        reasoning=lambda agent: None,
+        vision=10.0,
+        system_prompt="test",
+    )
+    model.grid.place_agent(agent, (50, 50))
+
+    neighbor = LLMAgent(model=model, reasoning=lambda agent: None)
+    model.grid.place_agent(neighbor, (55, 55))
+
+    monkeypatch.setattr(agent.memory, "add_to_memory", lambda *args, **kwargs: None)
+
+    obs = agent.generate_obs()
+    assert len(obs.local_state) == 1
+    assert f"LLMAgent {neighbor.unique_id}" in obs.local_state

@@ -72,16 +72,21 @@ class ModuleLLM:
                 self.llm_model,
             )
 
-    def get_messages(self, prompt: str | list[str]) -> list[dict]:
+    def get_messages(self, prompt: str | list[str] | list[dict]) -> list[dict]:
         """
         Format the prompt messages for the LLM of the form : {"role": ..., "content": ...}
 
         Args:
-            prompt: The prompt to generate a response for
+            prompt: The prompt to generate a response for. Can be a string, a list of strings,
+                    or a list of message dictionaries.
 
         Returns:
             The messages for the LLM
         """
+        # If prompt is already a list of dicts, assume it's correctly formatted messages
+        if isinstance(prompt, list) and all(isinstance(m, dict) for m in prompt):
+            return prompt
+
         messages = []
 
         # Always include a system message. Default to empty string if no system prompt to support Ollama
@@ -92,7 +97,7 @@ class ModuleLLM:
             if isinstance(prompt, str):
                 messages.append({"role": "user", "content": prompt})
             elif isinstance(prompt, list):
-                # Use extend to add all prompts from the list
+                # Use extend to add all prompts from the list as user messages
                 messages.extend([{"role": "user", "content": p} for p in prompt])
 
         return messages
@@ -167,11 +172,16 @@ class ModuleLLM:
             reraise=True,
         ):
             with attempt:
-                response = await acompletion(
-                    model=self.llm_model,
-                    messages=messages,
-                    tools=tool_schema,
-                    tool_choice=tool_choice if tool_schema else None,
-                    response_format=response_format,
-                )
+                # If api_base is provided, use it to override the default API base
+                kwargs = {
+                    "model": self.llm_model,
+                    "messages": messages,
+                    "tools": tool_schema,
+                    "tool_choice": tool_choice if tool_schema else None,
+                    "response_format": response_format,
+                }
+                if self.api_base:
+                    kwargs["api_base"] = self.api_base
+
+                response = await acompletion(**kwargs)
         return response

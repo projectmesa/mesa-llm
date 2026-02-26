@@ -154,21 +154,37 @@ class LLMAgent(Agent):
             "internal_state": self.internal_state,
         }
         if self.vision is not None and self.vision > 0:
-            if isinstance(self.model.grid, SingleGrid | MultiGrid):
-                neighbors = self.model.grid.get_neighbors(
-                    tuple(self.pos), moore=True, include_center=False, radius=int(self.vision)
-                )
-            elif isinstance(
-                self.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
-            ):
-                neighbors = []
-                for neighbor in self.cell.connections.values():
-                    neighbors.extend(neighbor.agents)
+            # Check for grid or space
+            space = getattr(self.model, "grid", None) or getattr(self.model, "space", None)
 
-            elif isinstance(getattr(self.model, "space", None), ContinuousSpace):
-                neighbors = self.model.space.get_neighbors(
-                    self.pos, radius=self.vision, include_center=False
+            if isinstance(space, SingleGrid | MultiGrid | ContinuousSpace):
+                # radius for discrete grids must be int, for continuous can be float
+                radius = (
+                    int(self.vision)
+                    if isinstance(space, SingleGrid | MultiGrid)
+                    else self.vision
                 )
+                neighbors = space.get_neighbors(
+                    self.pos, radius=radius, include_center=False
+                )
+            elif isinstance(space, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+                # Handle cell-based grids with potentially larger vision radius
+                neighbors = []
+                visited_cells = {self.cell}
+                current_cells = [self.cell]
+
+                for _ in range(int(self.vision)):
+                    next_cells = []
+                    for cell in current_cells:
+                        for neighbor_cell in cell.connections.values():
+                            if neighbor_cell not in visited_cells:
+                                visited_cells.add(neighbor_cell)
+                                next_cells.append(neighbor_cell)
+                                neighbors.extend(neighbor_cell.agents)
+                    current_cells = next_cells
+            else:
+                # Fallback or unrecognized space type
+                neighbors = []
 
         elif self.vision == -1:
             all_agents = list(self.model.agents)

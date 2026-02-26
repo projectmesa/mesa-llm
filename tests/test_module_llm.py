@@ -81,7 +81,6 @@ class TestModuleLLM:
             {"role": "user", "content": "Hello, how are you?"},
         ]
 
-        # Test get_messages with system prompt and list of prompts
         messages = llm.get_messages(
             ["Hello, how are you?", "What is the weather in Tokyo?"]
         )
@@ -90,6 +89,14 @@ class TestModuleLLM:
             {"role": "user", "content": "Hello, how are you?"},
             {"role": "user", "content": "What is the weather in Tokyo?"},
         ]
+
+        # Test get_messages with already formatted message dictionaries
+        custom_messages = [
+            {"role": "system", "content": "custom system"},
+            {"role": "user", "content": "custom user"},
+        ]
+        messages = llm.get_messages(custom_messages)
+        assert messages == custom_messages
 
         # Test get_messages no system prompt and no prompt
         llm = ModuleLLM(llm_model="openai/gpt-4o")
@@ -123,15 +130,23 @@ class TestModuleLLM:
 
     @pytest.mark.asyncio
     async def test_agenerate(self, monkeypatch):
+        captured_kwargs = {}
+
+        async def _mock_acompletion(**kwargs):
+            captured_kwargs.update(kwargs)
+            return _DummyResponse({"choices": [{"message": {"content": "ok"}}]})
+
         # Prevent network calls by stubbing litellm acompletion
-        monkeypatch.setattr("mesa_llm.module_llm.acompletion", _dummy_acompletion)
+        monkeypatch.setattr("mesa_llm.module_llm.acompletion", _mock_acompletion)
+
         # Test agenerate with string prompt
         llm = ModuleLLM(llm_model="openai/gpt-4o")
         response = await llm.agenerate(prompt="Hello, how are you?")
         assert response is not None
+        assert "api_base" not in captured_kwargs
 
-        # Test agenerate with list of prompts
-        response = await llm.agenerate(
-            prompt=["Hello, how are you?", "What is the weather in Tokyo?"]
-        )
-        assert response is not None
+        # Test agenerate with api_base
+        captured_kwargs.clear()
+        llm = ModuleLLM(llm_model="openai/gpt-4o", api_base="https://custom.api")
+        await llm.agenerate(prompt="Hello")
+        assert captured_kwargs["api_base"] == "https://custom.api"
