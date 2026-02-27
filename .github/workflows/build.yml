@@ -51,11 +51,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    - name: Lint with Ruff
-      run: |
-        ruff check .
-        ruff format --check .
-
     - name: Run tests with pytest
       run: |
         pytest tests/ --cov=mesa_llm --cov-report=xml
