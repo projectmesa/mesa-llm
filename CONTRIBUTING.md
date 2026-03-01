@@ -11,8 +11,12 @@ In no particular order, examples include:
 - Documentation improvements
 - Tutorials
 
+> [!NOTE]
+> For Mesa-wide contribution process and development expectations, see [Mesa CONTRIBUTING].
+
 [Mesa-LLM discussions]: https://github.com/mesa/mesa-llm/discussions
 [issue]: https://github.com/mesa/mesa-llm/issues
+[Mesa CONTRIBUTING]: https://github.com/mesa/mesa/blob/main/CONTRIBUTING.md
 
 **To submit a contribution**
 
