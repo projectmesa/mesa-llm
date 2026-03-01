@@ -343,7 +343,7 @@ def _make_agent(model, vision=0, internal_state=None):
         vision=vision,
         internal_state=internal_state or ["test"],
     )
-    agent = agents[0]
+    agent = agents.to_list()[0]
     agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
     return agent
 
@@ -506,7 +506,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
         a.memory = ShortTermMemory(agent=a, n=5, display=True)
         model.grid.place_agent(a, (idx, idx))
 
-    agent = agents[0]
+    agent = agents.to_list()[0]
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *a, **kw: None)
     obs = agent.generate_obs()
 
@@ -529,7 +529,7 @@ def test_generate_obs_no_grid_with_vision(monkeypatch):
         vision=5,
         internal_state=["test"],
     )
-    agent = agents[0]
+    agent = agents.to_list()[0]
     agent.unique_id = 1
     agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *a, **kw: None)
