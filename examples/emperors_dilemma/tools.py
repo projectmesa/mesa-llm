@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
-from mesa_llm.tools.tool_manager import ToolManager
 from mesa_llm.tools.tool_decorator import tool
+from mesa_llm.tools.tool_manager import ToolManager
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent

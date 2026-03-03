@@ -4,8 +4,8 @@ from agents import EmperorLLMAgent
 from mesa import Model
 from mesa.datacollection import DataCollector
 from mesa.discrete_space.grid import OrthogonalMooreGrid
-from mesa_llm.reasoning.react import ReActReasoning
 
+from mesa_llm.reasoning.react import ReActReasoning
 
 LLM_MODEL = ""  # Change this to your preferred model
 
