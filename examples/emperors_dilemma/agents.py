@@ -75,10 +75,14 @@ class EmperorLLMAgent(LLMAgent, FixedAgent):
         observation = self.generate_obs()
 
         # 3. Build prompt with social context
-        belief_description = "support" if self.private_belief == 1 else "privately reject"
+        belief_description = (
+            "support" if self.private_belief == 1 else "privately reject"
+        )
         conviction_description = (
-            "very strongly" if self.conviction > 0.3
-            else "moderately" if self.conviction > 0.15
+            "very strongly"
+            if self.conviction > 0.3
+            else "moderately"
+            if self.conviction > 0.15
             else "weakly"
         )
 
@@ -111,7 +115,10 @@ even if you privately hate the norm, just to avoid suspicion.
 """
 
         # 4. Plan and execute — split into two calls for Groq compatibility
-        compliance_prompt = prompt + "\n\nFirst, use set_compliance to record your compliance decision only."
+        compliance_prompt = (
+            prompt
+            + "\n\nFirst, use set_compliance to record your compliance decision only."
+        )
         plan = self.reasoning.plan(
             prompt=compliance_prompt,
             obs=observation,
@@ -119,7 +126,10 @@ even if you privately hate the norm, just to avoid suspicion.
         )
         self.apply_plan(plan)
 
-        enforcement_prompt = prompt + "\n\nNow use set_enforcement to record your enforcement decision only."
+        enforcement_prompt = (
+            prompt
+            + "\n\nNow use set_enforcement to record your enforcement decision only."
+        )
         plan = self.reasoning.plan(
             prompt=enforcement_prompt,
             obs=observation,

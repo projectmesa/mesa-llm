@@ -11,7 +11,7 @@ from mesa.visualization.components.portrayal_components import AgentPortrayalSty
 from model import EmperorLLMModel
 
 # Set your API key here
-os.environ["OPENROUTER_API_KEY"] = "" # Replace with your key
+os.environ["OPENROUTER_API_KEY"] = ""  # Replace with your key
 
 
 COLOR_COMPLY_QUIET = "#F0F8FF"
@@ -92,9 +92,7 @@ emperor_model = EmperorLLMModel()
 renderer = SpaceRenderer(
     model=emperor_model,
     backend="matplotlib",
-).render(
-    agent_portrayal=emperor_portrayal
-)
+).render(agent_portrayal=emperor_portrayal)
 renderer.post_process = post_process_space
 
 page = SolaraViz(

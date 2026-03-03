@@ -21,7 +21,7 @@ class EmperorLLMModel(Model):
     def __init__(
         self,
         width=5,
-        height= 5,
+        height=5,
         fraction_true_believers=0.05,
         k=0.125,
         homophily=False,
