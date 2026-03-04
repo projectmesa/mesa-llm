@@ -102,6 +102,7 @@ class ReWOOReasoning(Reasoning):
         self,
         prompt: str | None = None,
         obs: Observation | None = None,
+        ttl: int = 1,
         selected_tools: list[str] | None = None,
     ) -> Plan:
         """
@@ -152,7 +153,13 @@ class ReWOOReasoning(Reasoning):
 
         return rewoo_plan
 
-    async def aplan(self, prompt: str, selected_tools: list[str] | None = None) -> Plan:
+    async def aplan(
+        self,
+        prompt: str,
+        obs: Observation | None = None,
+        ttl: int = 1,
+        selected_tools: list[str] | None = None,
+    ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
         """

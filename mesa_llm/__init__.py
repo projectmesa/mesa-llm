@@ -21,8 +21,6 @@ __all__ = [
     "enable_automatic_parallel_stepping",
     "record_model",
     "step_agents_parallel",
-    "step_agents_parallel",
-    "step_agents_parallel_sync",
     "step_agents_parallel_sync",
 ]
 

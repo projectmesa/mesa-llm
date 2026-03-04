@@ -43,6 +43,7 @@ class ShortTermMemory(Memory):
         - Add the new entry to the short term memory
         - Display the new entry
         """
+        new_entry = None
 
         # Add the new entry to the short term memory
         if pre_step:
@@ -55,9 +56,9 @@ class ShortTermMemory(Memory):
             self.step_content = {}
             return
 
-        elif not self.short_term_memory[-1].content.get("step", None):
-            pre_step = self.short_term_memory.pop()
-            self.step_content.update(pre_step.content)
+        elif self.short_term_memory and not self.short_term_memory[-1].content.get("step", None):
+            pre_step_entry = self.short_term_memory.pop()
+            self.step_content.update(pre_step_entry.content)
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
@@ -68,7 +69,7 @@ class ShortTermMemory(Memory):
             self.step_content = {}
 
         # Display the new entry
-        if self.display:
+        if self.display and new_entry is not None:
             new_entry.display()
 
     def format_short_term(self) -> str:
