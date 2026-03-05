@@ -4,7 +4,9 @@ from unittest.mock import Mock, patch
 import pytest
 from litellm import Choices, Message, ModelResponse
 from mesa.model import Model
-from mesa.space import MultiGrid
+# from mesa.space import MultiGrid
+from mesa.discrete_space import OrthogonalMooreGrid
+
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_memory import ShortTermMemory
@@ -96,15 +98,24 @@ def basic_model():
     return Model(rng=42)
 
 
+# @pytest.fixture
+# def grid_model():
+#     """Create model with MultiGrid"""
+
+#     class GridModel(Model):
+#         def __init__(self):
+#             super().__init__(seed=42)
+#             self.grid = MultiGrid(10, 10, torus=False)
+
+#     return GridModel()
+# ✅ Replace the grid_model fixture (lines 63-68) with this:
 @pytest.fixture
 def grid_model():
-    """Create model with MultiGrid"""
-
+    """Create model with OrthogonalMooreGrid"""
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(10, 10, torus=False)
-
     return GridModel()
 
 

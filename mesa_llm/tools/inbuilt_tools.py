@@ -4,11 +4,7 @@ from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
-from mesa.space import (
-    ContinuousSpace,
-    MultiGrid,
-    SingleGrid,
-)
+from mesa.experimental.continuous_space import ContinuousSpace
 
 from mesa_llm.tools.tool_decorator import tool
 
@@ -63,7 +59,7 @@ def _get_agent_position(agent: "LLMAgent") -> Any:
 @tool
 def move_one_step(agent: "LLMAgent", direction: str) -> str:
     """
-    Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including SingleGrid, MultiGrid, OrthogonalGrids, and ContinuousSpace.
+    Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including OrthogonalGrids and ContinuousSpace.
 
         Args:
             direction: The direction to move in. Must be one of:
@@ -168,15 +164,12 @@ def teleport_to_location(
     """
     target_coordinates = tuple(target_coordinates)
 
-    if isinstance(agent.model.grid, SingleGrid | MultiGrid):
-        agent.model.grid.move_agent(agent, target_coordinates)
-
-    elif isinstance(agent.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+    if isinstance(agent.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
         cell = agent.model.grid._cells[target_coordinates]
         agent.cell = cell
 
     elif isinstance(agent.model.space, ContinuousSpace):
-        agent.model.space.move_agent(agent, target_coordinates)
+        agent.pos = target_coordinates
 
     else:
         raise ValueError(

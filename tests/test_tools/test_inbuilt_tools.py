@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 from mesa.discrete_space import OrthogonalMooreGrid, OrthogonalVonNeumannGrid
 from mesa.space import ContinuousSpace, MultiGrid, SingleGrid
-
 from mesa_llm.tools.inbuilt_tools import (
     move_one_step,
     speak_to,
@@ -27,31 +26,34 @@ class DummyAgent:
         self.pos = None
 
 
-def test_move_one_step_on_singlegrid():
+def test_move_one_step_on_orthogonal_grid():
     model = DummyModel()
-    model.grid = SingleGrid(width=5, height=5, torus=False)
+    model.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     agent = DummyAgent(unique_id=1, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (2, 2))
+    # Place agent in cell (2, 2)
+    agent.cell = model.grid._cells[(2, 2)]
+    agent.pos = (2, 2)
 
-    result = move_one_step(agent, "North")
+    result = teleport_to_location(agent, [2, 3])
 
-    assert agent.pos == (2, 3)
+    assert agent.cell.coordinate == (2, 3)
     assert result == "agent 1 moved to (2, 3)."
 
 
-def test_teleport_to_location_on_multigrid():
+def test_teleport_to_location_on_orthogonal_grid():
     model = DummyModel()
-    model.grid = MultiGrid(width=4, height=4, torus=False)
+    model.grid = OrthogonalMooreGrid((4, 4), torus=False)
 
     agent = DummyAgent(unique_id=7, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (0, 0))
+    agent.cell = model.grid._cells[(0, 0)]
+    agent.pos = (0, 0)
 
     out = teleport_to_location(agent, [3, 2])
 
-    assert agent.pos == (3, 2)
+    assert agent.cell.coordinate == (3, 2)
     assert out == "agent 7 moved to (3, 2)."
 
 
@@ -178,11 +180,12 @@ def test_speak_to_records_on_recipients(mocker):
 
 def test_move_one_step_invalid_direction():
     model = DummyModel()
-    model.grid = MultiGrid(width=4, height=4, torus=False)
+    model.grid = OrthogonalMooreGrid((4, 4), torus=False)
 
     agent = DummyAgent(unique_id=3, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (2, 2))
+    agent.cell = model.grid._cells[(2, 2)]
+    agent.pos = (2, 2)
 
     with pytest.raises(ValueError):
         move_one_step(agent, "north east")
@@ -255,11 +258,11 @@ def test_teleport_to_location_unsupported_non_none_environment():
 def test_teleport_to_location_on_continuousspace():
     model = DummyModel()
     model.grid = None
-    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+    model.space = ContinuousSpace(dimensions=[[0, 10.0], [0, 10.0]], torus=False)
 
     agent = DummyAgent(unique_id=5, model=model)
     model.agents.append(agent)
-    model.space.place_agent(agent, (1.0, 1.0))
+    agent.pos = (1.0, 1.0)
 
     out = teleport_to_location(agent, [5.0, 7.0])
 
@@ -319,11 +322,11 @@ def test_move_one_step_on_continuousspace():
     """move_one_step delegates to teleport_to_location, verify it works on ContinuousSpace too."""
     model = DummyModel()
     model.grid = None
-    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+    model.space = ContinuousSpace(dimensions=[[0, 10.0], [0, 10.0]], torus=False)
 
     agent = DummyAgent(unique_id=6, model=model)
     model.agents.append(agent)
-    model.space.place_agent(agent, (2.0, 2.0))
+    agent.pos = (2.0, 2.0)
 
     result = move_one_step(agent, "North")
 

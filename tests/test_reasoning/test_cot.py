@@ -4,8 +4,8 @@ import asyncio
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from mesa.discrete_space import OrthogonalMooreGrid
 from mesa.model import Model
-from mesa.space import MultiGrid
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.reasoning.cot import CoTReasoning
@@ -46,7 +46,6 @@ class TestCoTReasoning:
             def __init__(self):
                 super().__init__(rng=45)
                 self.grid = MultiGrid(3, 3, torus=False)
-
         # Create an LLMAgent with CoTReasoning
         model = DummyModel()
         agent = LLMAgent(
