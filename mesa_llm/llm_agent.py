@@ -1,14 +1,10 @@
-from mesa.agent import Agent
+﻿from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
+from mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
-from mesa.space import (
-    ContinuousSpace,
-    MultiGrid,
-    SingleGrid,
-)
 
 from mesa_llm import Plan
 from mesa_llm.memory.st_lt_memory import STLTMemory
@@ -151,8 +147,8 @@ class LLMAgent(Agent):
             "agent_unique_id": self.unique_id,
             "system_prompt": self.system_prompt,
             "location": (
-                self.pos
-                if self.pos is not None
+                getattr(self, "pos", None)
+                if getattr(self, "pos", None) is not None
                 else (
                     getattr(self, "cell", None).coordinate
                     if getattr(self, "cell", None) is not None
@@ -166,31 +162,23 @@ class LLMAgent(Agent):
             grid = getattr(self.model, "grid", None)
             space = getattr(self.model, "space", None)
 
-            if grid and isinstance(grid, SingleGrid | MultiGrid):
-                neighbors = grid.get_neighbors(
-                    tuple(self.pos),
-                    moore=True,
-                    include_center=False,
-                    radius=self.vision,
-                )
-            elif grid and isinstance(
-                grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
-            ):
-                agent_cell = next(
-                    (cell for cell in grid.all_cells if self in cell.agents),
-                    None,
-                )
+            if grid and isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+                agent_cell = getattr(self, "cell", None)
                 if agent_cell:
                     neighborhood = agent_cell.get_neighborhood(radius=self.vision)
-                    neighbors = [a for cell in neighborhood for a in cell.agents]
+                    neighbors = [a for cell in neighborhood for a in list(cell.agents) if a is not self]
                 else:
                     neighbors = []
 
             elif space and isinstance(space, ContinuousSpace):
-                all_nearby = space.get_neighbors(
-                    self.pos, radius=self.vision, include_center=True
-                )
-                neighbors = [a for a in all_nearby if a is not self]
+                import math
+                neighbors = [
+                    a for a in self.model.agents
+                    if a is not self
+                    and getattr(a, "pos", None) is not None
+                    and getattr(self, "pos", None) is not None
+                    and math.dist(self.pos, a.pos) <= self.vision
+                ]
 
             else:
                 # No recognized grid/space type
@@ -227,7 +215,7 @@ class LLMAgent(Agent):
         construction logic, stores it in the agent's memory module using
         async memory operations, and returns it as an Observation instance.
         """
-        step = self.model.steps
+        step = self.model.step
         self_state, local_state = self._build_observation()
         await self.memory.aadd_to_memory(
             type="observation",
@@ -245,7 +233,7 @@ class LLMAgent(Agent):
         builder, stores the resulting observation in the agent's memory module,
         and returns it as an Observation instance.
         """
-        step = self.model.steps
+        step = self.model.step
         self_state, local_state = self._build_observation()
         # Add to memory (memory handles its own display separately)
         self.memory.add_to_memory(
@@ -362,3 +350,4 @@ class LLMAgent(Agent):
                 return result
 
             cls.astep = awrapped
+
