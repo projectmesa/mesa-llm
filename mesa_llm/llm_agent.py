@@ -3,7 +3,7 @@ from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
-from mesa.experimental.continuous_space import ContinuousSpace
+import math`nfrom mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
 
 from mesa_llm import Plan

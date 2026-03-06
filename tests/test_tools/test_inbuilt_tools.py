@@ -282,7 +282,6 @@ def test_teleport_to_location_singlegrid_occupied_target_raises():
     with pytest.raises(Exception, match="Cell not empty"):
         teleport_to_location(moving_agent, [1, 2])
 
-
 def test_teleport_to_location_singlegrid_out_of_bounds_raises():
     model = DummyModel()
     model.grid = SingleGrid(width=4, height=4, torus=False)
@@ -435,7 +434,7 @@ def test_move_one_step_singlegrid_occupied_target():
     model.grid.place_agent(moving_agent, (2, 2))
     model.grid.place_agent(blocking_agent, (2, 3))
 
-    result = move_one_step(moving_agent, "North")
+    move_one_step(moving_agent, "North")
 
     assert moving_agent.pos == (2, 2)
     assert blocking_agent.pos == (2, 3)
