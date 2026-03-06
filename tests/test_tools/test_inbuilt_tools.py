@@ -4,8 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from mesa.discrete_space import OrthogonalMooreGrid, OrthogonalVonNeumannGrid
-from mesa.space import ContinuousSpace, MultiGrid, SingleGrid
-from mesa_llm.tools.inbuilt_tools import (
+from mesa.space import ContinuousSpace, MultiGrid, SingleGridfrom mesa_llm.tools.inbuilt_tools import (
     move_one_step,
     speak_to,
     teleport_to_location,
