@@ -1,4 +1,4 @@
-﻿from mesa.agent import Agent
+from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
@@ -162,18 +162,27 @@ class LLMAgent(Agent):
             grid = getattr(self.model, "grid", None)
             space = getattr(self.model, "space", None)
 
-            if grid and isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+            if grid and isinstance(
+                grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
+            ):
                 agent_cell = getattr(self, "cell", None)
                 if agent_cell:
                     neighborhood = agent_cell.get_neighborhood(radius=self.vision)
-                    neighbors = [a for cell in neighborhood for a in list(cell.agents) if a is not self]
+                    neighbors = [
+                        a
+                        for cell in neighborhood
+                        for a in list(cell.agents)
+                        if a is not self
+                    ]
                 else:
                     neighbors = []
 
             elif space and isinstance(space, ContinuousSpace):
                 import math
+
                 neighbors = [
-                    a for a in self.model.agents
+                    a
+                    for a in self.model.agents
                     if a is not self
                     and getattr(a, "pos", None) is not None
                     and getattr(self, "pos", None) is not None
@@ -350,4 +359,3 @@ class LLMAgent(Agent):
                 return result
 
             cls.astep = awrapped
-

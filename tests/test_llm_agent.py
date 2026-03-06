@@ -516,8 +516,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
     class ContModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
-    model = ContModel()
+            self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)    model = ContModel()
     agents = LLMAgent.create_agents(
         model,
         n=3,
@@ -661,6 +660,7 @@ def test_generate_obs_orthogonal_grid_branches(monkeypatch):
     obs = agent.generate_obs()
 
     assert len(obs.local_state) == 0
+<<<<<<< HEAD
 
 
 def test_generate_obs_with_non_llm_neighbor(monkeypatch):
@@ -822,3 +822,5 @@ async def test_asend_message_stores_serializable_ids(monkeypatch):
     data = json.loads(json.dumps(captured))
     assert data["sender"] == 10
     assert data["recipients"] == [20]
+=======
+>>>>>>> 79d1dc2 ([pre-commit.ci] auto fixes from pre-commit.com hooks)
