@@ -1,9 +1,10 @@
+import math
+
 from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
-import math
 from mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
 
@@ -179,8 +180,6 @@ class LLMAgent(Agent):
                     neighbors = []
 
             elif space and isinstance(space, ContinuousSpace):
-                
-
                 neighbors = [
                     a
                     for a in self.model.agents
