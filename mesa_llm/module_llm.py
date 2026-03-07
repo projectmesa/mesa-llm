@@ -85,7 +85,9 @@ class ModuleLLM:
                 self.llm_model,
             )
 
-    def _build_messages(self, prompt: str | list[str] | None = None) -> list[dict[str, str]]:
+    def _build_messages(
+        self, prompt: str | list[str] | None = None
+    ) -> list[dict[str, str]]:
         """
         Format the prompt messages for the LLM.
 

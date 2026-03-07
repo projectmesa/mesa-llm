@@ -516,8 +516,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
     class ContModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)    model = ContModel()
-    agents = LLMAgent.create_agents(
+            self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)    model = ContModel()    agents = LLMAgent.create_agents(
         model,
         n=3,
         reasoning=ReActReasoning,
@@ -533,8 +532,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
         a.memory = ShortTermMemory(agent=a, n=5, display=True)
 
     agent.pos = (5.0, 5.0)
-    nearby.pos = (6.0, 5.0)  # distance ≈ 1.0
-    far.pos = (9.0, 9.0)  # distance ≈ 5.66
+    nearby.pos = (6.0, 5.0)  # distance ≈ 1.0    far.pos = (9.0, 9.0)  # distance ≈ 5.66
 
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *a, **kw: None)
     obs = agent.generate_obs()
@@ -615,8 +613,7 @@ def test_generate_obs_standard_grid_with_vision_radius(monkeypatch):
     # FIXED: Place agents using Mesa's official add_agent method
     agent_cell = model.grid._cells[(2, 2)]
     agent_cell.add_agent(agent)
-    agent.cell = agent_cell
-    agent.pos = (2, 2)
+    agent.cell = agent_cell    agent.pos = (2, 2)
 
     neighbor_cell = model.grid._cells[(2, 3)]
     neighbor_cell.add_agent(neighbor)
