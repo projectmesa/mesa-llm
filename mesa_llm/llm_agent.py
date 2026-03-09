@@ -3,8 +3,8 @@ from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
-from mesa.model import Model
 from mesa.experimental.continuous_space import ContinuousSpace
+from mesa.model import Model
 
 from mesa_llm import Plan
 from mesa_llm.memory.st_lt_memory import STLTMemory

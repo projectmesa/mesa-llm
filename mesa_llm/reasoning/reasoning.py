@@ -79,7 +79,7 @@ class Reasoning(ABC):
     """
 
     def __init__(self, agent: "LLMAgent") -> None:
-        self.agent: "LLMAgent" = agent
+        self.agent: LLMAgent = agent
 
     @abstractmethod
     def plan(
