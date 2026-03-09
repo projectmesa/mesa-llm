@@ -29,19 +29,24 @@ class Observation:
     """
 
     step: int
-    self_state: dict
-    local_state: dict
+    self_state: dict[str, Any]
+    local_state: dict[str, Any]
 
 
 @dataclass
 class Plan:
     """
     An LLM-generated plan containing the step number, complete LLM response with tool calls, and a time-to-live (TTL) indicating how many steps the plan remains valid. Plans encapsulate both reasoning content and executable actions.
+
+    Attributes:
+        step (int): The simulation step when the plan was generated.
+        llm_plan (Any): The complete LLM response message object, containing both content and tool_calls.
+        ttl (int): Steps until the agent re-plans. ReWOO sets this above 1 for multi-step plans.
     """
 
-    step: int  # step when the plan was generated
-    llm_plan: Any  # complete LLM response message object (contains both content and tool_calls)
-    ttl: int = 1  # steps until planning again (ReWOO sets >1)
+    step: int
+    llm_plan: Any
+    ttl: int = 1
 
     def __str__(self) -> str:
         # Extract content from the message object for display
@@ -73,8 +78,8 @@ class Reasoning(ABC):
         5. Tool manager **executes the planned actions** in the simulation environment
     """
 
-    def __init__(self, agent: "LLMAgent"):
-        self.agent = agent
+    def __init__(self, agent: "LLMAgent") -> None:
+        self.agent: "LLMAgent" = agent
 
     @abstractmethod
     def plan(
@@ -106,10 +111,21 @@ class Reasoning(ABC):
 
     def execute_tool_call(
         self,
-        chaining_message,
+        chaining_message: str,
         selected_tools: list[str] | None = None,
         ttl: int = 1,
-    ):
+    ) -> Plan:
+        """
+        Execute a tool call using the LLM and return the resulting Plan.
+
+        Args:
+            chaining_message (str): The plan content to pass to the executor LLM.
+            selected_tools (list[str] | None): Optional list of tool names to restrict execution to.
+            ttl (int): Time-to-live for the returned plan.
+
+        Returns:
+            Plan: The executed plan containing the LLM response and step info.
+        """
         system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
         self.agent.llm.system_prompt = system_prompt
         rsp = self.agent.llm.generate(
@@ -120,18 +136,28 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        _steps = getattr(self.agent.model, "steps", None)
+        step = int(_steps) if _steps is not None else int(self.agent.model._time)
+        plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
 
         return plan
 
     async def aexecute_tool_call(
         self,
-        chaining_message,
+        chaining_message: str,
         selected_tools: list[str] | None = None,
         ttl: int = 1,
-    ):
+    ) -> Plan:
         """
         Asynchronous version of execute_tool_call() method.
+
+        Args:
+            chaining_message (str): The plan content to pass to the executor LLM.
+            selected_tools (list[str] | None): Optional list of tool names to restrict execution to.
+            ttl (int): Time-to-live for the returned plan.
+
+        Returns:
+            Plan: The executed plan containing the LLM response and step info.
         """
         system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
         self.agent.llm.system_prompt = system_prompt
@@ -143,6 +169,8 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        _steps = getattr(self.agent.model, "steps", None)
+        step = int(_steps) if _steps is not None else int(self.agent.model._time)
+        plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
 
         return plan

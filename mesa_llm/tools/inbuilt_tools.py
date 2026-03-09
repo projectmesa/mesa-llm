@@ -4,11 +4,7 @@ from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
-from mesa.space import (
-    ContinuousSpace,
-    MultiGrid,
-    SingleGrid,
-)
+from mesa.experimental.continuous_space import ContinuousSpace
 
 from mesa_llm.tools.tool_decorator import tool
 
@@ -173,7 +169,7 @@ def teleport_to_location(
 
     elif isinstance(agent.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
         cell = agent.model.grid._cells[target_coordinates]
-        agent.cell = cell
+        agent.model.grid.move_agent(agent, target_coordinates)
 
     elif isinstance(agent.model.space, ContinuousSpace):
         agent.model.space.move_agent(agent, target_coordinates)

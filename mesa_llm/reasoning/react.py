@@ -26,10 +26,16 @@ class ReActReasoning(Reasoning):
         - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan with ReAct reasoning
     """
 
-    def __init__(self, agent: "LLMAgent"):
+    def __init__(self, agent: "LLMAgent") -> None:
         super().__init__(agent=agent)
 
     def get_react_system_prompt(self) -> str:
+        """
+        Build the ReAct system prompt instructing the agent to reason then act.
+
+        Returns:
+            str: The formatted system prompt for ReAct reasoning.
+        """
         system_prompt = """
         You are an autonomous agent in a simulation environment.
         You can think about your situation and describe your plan.
@@ -46,6 +52,16 @@ class ReActReasoning(Reasoning):
         return system_prompt
 
     def get_react_prompt(self, obs: Observation) -> list[str]:
+        """
+        Build the list of prompt strings for ReAct planning, incorporating memory
+        and the current observation.
+
+        Args:
+            obs (Observation): The agent's current observation.
+
+        Returns:
+            list[str]: Ordered list of prompt components to pass to the LLM.
+        """
         prompt_list = [self.agent.memory.get_prompt_ready()]
         last_communication = self.agent.memory.get_communication_history()
 
@@ -65,6 +81,15 @@ class ReActReasoning(Reasoning):
     ) -> Plan:
         """
         Plan the next (ReAct) action based on the current observation and the agent's memory.
+
+        Args:
+            prompt (str | None): Optional user prompt. Falls back to agent.step_prompt if None.
+            obs (Observation | None): Optional observation. Generated fresh if None.
+            ttl (int): Time-to-live for the returned plan.
+            selected_tools (list[str] | None): Optional list of tool names to restrict to.
+
+        Returns:
+            Plan: The ReAct-generated plan ready for execution.
         """
 
         if obs is None:
@@ -116,6 +141,15 @@ class ReActReasoning(Reasoning):
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
+
+        Args:
+            prompt (str | None): Optional user prompt. Falls back to agent.step_prompt if None.
+            obs (Observation | None): Optional observation. Generated fresh if None.
+            ttl (int): Time-to-live for the returned plan.
+            selected_tools (list[str] | None): Optional list of tool names to restrict to.
+
+        Returns:
+            Plan: The ReAct-generated plan ready for execution.
         """
         if obs is None:
             obs = await self.agent.agenerate_obs()
