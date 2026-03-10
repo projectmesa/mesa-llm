@@ -272,7 +272,9 @@ class SimulationRecorder:
 
     def get_agent_events(self, agent_id: int) -> list[SimulationEvent]:
         """Get all events for a specific agent."""
-        return [event for event in self._iter_all_events() if event.agent_id == agent_id]
+        return [
+            event for event in self._iter_all_events() if event.agent_id == agent_id
+        ]
 
     def get_events_by_type(self, event_type: str) -> list[SimulationEvent]:
         """Get all events of a specific type."""
