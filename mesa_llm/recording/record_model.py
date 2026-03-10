@@ -86,7 +86,7 @@ def record_model(
         def _auto_save():
             try:
                 # Avoid creating multiple identical files if already saved manually
-                if hasattr(self, "recorder") and self.recorder.events:
+                if hasattr(self, "recorder") and self.recorder.has_recorded_events:
                     self.save_recording()
             except Exception:  # pragma: no cover - defensive
                 logger.exception("SimulationRecorder auto-save failed")

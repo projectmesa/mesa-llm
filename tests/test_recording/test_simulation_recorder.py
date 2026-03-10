@@ -62,6 +62,24 @@ class TestSimulationRecorder:
         assert recorder.simulation_metadata["model_class"] == "TestModel"
         assert "start_time" in recorder.simulation_metadata
 
+    def test_initialization_jsonl_mode(self, mock_model, temp_dir):
+        """Test recorder initialization in streaming mode."""
+        recorder = SimulationRecorder(
+            model=mock_model,
+            output_dir=str(temp_dir),
+            storage_mode="jsonl",
+            max_events_in_memory=2,
+        )
+
+        assert recorder.storage_mode == "jsonl"
+        assert recorder.max_events_in_memory == 2
+        assert recorder.events == []
+        assert recorder.events_stream_path == (
+            temp_dir / f"simulation_{recorder.simulation_id}_events.jsonl"
+        )
+        assert recorder.events_stream_path.exists()
+        assert recorder.simulation_metadata["storage_mode"] == "jsonl"
+
     def test_record_event_basic(self, recorder):
         """Test recording a basic event."""
         recorder.record_event(
@@ -277,6 +295,58 @@ class TestSimulationRecorder:
         assert "metadata" in data
         assert "events" in data
         assert "agent_summaries" in data
+
+    def test_streaming_mode_limits_in_memory_events(self, mock_model, temp_dir):
+        """Test streaming mode keeps full history while capping in-memory events."""
+        recorder = SimulationRecorder(
+            model=mock_model,
+            output_dir=str(temp_dir),
+            storage_mode="jsonl",
+            max_events_in_memory=2,
+        )
+
+        mock_model.steps = 1
+        recorder.record_event("observation", {"data": "obs1"}, agent_id=123)
+        mock_model.steps = 2
+        recorder.record_event("action", {"data": "act1"}, agent_id=123)
+        mock_model.steps = 3
+        recorder.record_event("observation", {"data": "obs2"}, agent_id=456)
+
+        assert recorder.total_events_recorded == 3
+        assert len(recorder.events) == 2
+        assert [event.step for event in recorder.events] == [2, 3]
+
+        all_events = list(recorder._iter_all_events())
+        assert len(all_events) == 3
+        assert [event.step for event in all_events] == [1, 2, 3]
+        assert len(recorder.get_agent_events(123)) == 2
+        assert recorder.get_stats()["total_events"] == 3
+
+    def test_save_json_format_streaming_mode(self, mock_model, temp_dir):
+        """Test saving JSON recording in streaming mode exports full history."""
+        recorder = SimulationRecorder(
+            model=mock_model,
+            output_dir=str(temp_dir),
+            storage_mode="jsonl",
+            max_events_in_memory=1,
+        )
+        mock_model.steps = 5
+        mock_model.agents = [Mock(), Mock()]
+        mock_model.max_steps = 10
+
+        recorder.record_event("test_event", {"data": "test1"}, agent_id=123)
+        recorder.record_event("test_event", {"data": "test2"}, agent_id=456)
+
+        filepath = recorder.save(filename="streamed_recording.json", format="json")
+
+        with open(filepath) as f:
+            data = json.load(f)
+
+        assert filepath == temp_dir / "streamed_recording.json"
+        assert data["metadata"]["storage_mode"] == "jsonl"
+        assert len(data["events"]) == 3
+        assert data["agent_summaries"]["123"]["total_events"] == 1
+        assert data["agent_summaries"]["456"]["total_events"] == 1
 
     def test_save_auto_filename(self, recorder, temp_dir):
         """Test auto-generating filename when saving."""
