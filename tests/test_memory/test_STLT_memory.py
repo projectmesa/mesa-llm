@@ -200,3 +200,56 @@ class TestSTLTMemory:
         )
         assert "Short term memory:" in result
         assert "Long term memory:" in result
+
+    def test_consolidation_includes_evicted_entry(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """Test that the entry being evicted from short-term memory is included
+        in the consolidation prompt so its content is preserved in long-term
+        memory.
+
+        Before the fix, popleft() removed the oldest entry *before*
+        consolidation ran, so the evicted entry was permanently lost.
+        """
+        mock_llm.generate.return_value = llm_response_factory(
+            "Consolidated summary"
+        )
+
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=2,
+            consolidation_capacity=1,
+            llm_model="provider/test_model",
+        )
+        memory.llm = mock_llm
+
+        with patch("rich.console.Console"):
+            # Fill memory to just below consolidation threshold
+            for i in range(3):
+                memory.add_to_memory(
+                    "observation", {"content": f"event_{i}"}
+                )
+                memory.process_step(pre_step=True)
+                memory.process_step(pre_step=False)
+
+            # At this point, capacity(2) + consolidation_capacity(1) = 3
+            # We have 3 entries, so no consolidation yet.
+            assert not mock_llm.generate.called
+
+            # Add one more entry to trigger consolidation
+            memory.add_to_memory(
+                "observation", {"content": "event_3"}
+            )
+            memory.process_step(pre_step=True)
+            memory.process_step(pre_step=False)
+
+            # Consolidation should have been triggered
+            assert mock_llm.generate.called
+
+            # The consolidation prompt must contain the oldest entry
+            # (event_0) that is about to be evicted
+            prompt_sent = mock_llm.generate.call_args[0][0]
+            assert "event_0" in prompt_sent, (
+                "The evicted entry's content must appear in the consolidation "
+                "prompt so the LLM can preserve it in long-term memory"
+            )

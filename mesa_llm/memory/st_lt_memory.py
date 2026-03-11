@@ -136,7 +136,6 @@ class STLTMemory(Memory):
             > self.capacity + (self.consolidation_capacity or 0)
             and self.consolidation_capacity
         ):
-            self.short_term_memory.popleft()
             should_consolidate = True
 
         elif (
@@ -155,6 +154,7 @@ class STLTMemory(Memory):
 
         if should_consolidate:
             self._update_long_term_memory()
+            self.short_term_memory.popleft()
 
         if new_entry and self.display:
             new_entry.display()
@@ -167,6 +167,7 @@ class STLTMemory(Memory):
 
         if should_consolidate:
             await self._aupdate_long_term_memory()
+            self.short_term_memory.popleft()
 
         if new_entry and self.display:
             new_entry.display()
