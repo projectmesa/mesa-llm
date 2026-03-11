@@ -211,9 +211,7 @@ class TestSTLTMemory:
         Before the fix, popleft() removed the oldest entry *before*
         consolidation ran, so the evicted entry was permanently lost.
         """
-        mock_llm.generate.return_value = llm_response_factory(
-            "Consolidated summary"
-        )
+        mock_llm.generate.return_value = llm_response_factory("Consolidated summary")
 
         memory = STLTMemory(
             agent=mock_agent,
@@ -226,9 +224,7 @@ class TestSTLTMemory:
         with patch("rich.console.Console"):
             # Fill memory to just below consolidation threshold
             for i in range(3):
-                memory.add_to_memory(
-                    "observation", {"content": f"event_{i}"}
-                )
+                memory.add_to_memory("observation", {"content": f"event_{i}"})
                 memory.process_step(pre_step=True)
                 memory.process_step(pre_step=False)
 
@@ -237,9 +233,7 @@ class TestSTLTMemory:
             assert not mock_llm.generate.called
 
             # Add one more entry to trigger consolidation
-            memory.add_to_memory(
-                "observation", {"content": "event_3"}
-            )
+            memory.add_to_memory("observation", {"content": "event_3"})
             memory.process_step(pre_step=True)
             memory.process_step(pre_step=False)
 
