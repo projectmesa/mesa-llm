@@ -113,9 +113,7 @@ class ReWOOReasoning(Reasoning):
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
             # Use original tool calls count to calculate index (avoid mutation-induced bugs)
-            index_of_tool = (
-                len(self._all_tool_calls) - self.remaining_tool_calls
-            )
+            index_of_tool = len(self._all_tool_calls) - self.remaining_tool_calls
             self.remaining_tool_calls -= 1
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
             # Return a plan with only the required tool call, without mutating current_plan
@@ -178,9 +176,7 @@ class ReWOOReasoning(Reasoning):
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
             # Use original tool calls count to calculate index (avoid mutation-induced bugs)
-            index_of_tool = (
-                len(self._all_tool_calls) - self.remaining_tool_calls
-            )
+            index_of_tool = len(self._all_tool_calls) - self.remaining_tool_calls
             self.remaining_tool_calls -= 1
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
             # Return a plan with only the required tool call, without mutating current_plan
