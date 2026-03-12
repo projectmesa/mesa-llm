@@ -147,9 +147,9 @@ class TestSTLTMemory:
 
         memory._update_long_term_memory()
 
-        assert isinstance(memory.long_term_memory, str), (
-            "long_term_memory must be a string, not a ModelResponse object"
-        )
+        assert isinstance(
+            memory.long_term_memory, str
+        ), "long_term_memory must be a string, not a ModelResponse object"
         assert memory.long_term_memory == "This is the summary text"
 
     def test_observation_tracking(self, mock_agent):
@@ -181,9 +181,9 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(result, str), (
-            f"get_prompt_ready() must return str, got {type(result).__name__}"
-        )
+        assert isinstance(
+            result, str
+        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
         assert "Short term memory:" in result
         assert "Long term memory:" in result
         assert "Test obs" in result
@@ -195,8 +195,44 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(result, str), (
-            f"get_prompt_ready() must return str, got {type(result).__name__}"
-        )
+        assert isinstance(
+            result, str
+        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
         assert "Short term memory:" in result
         assert "Long term memory:" in result
+
+    def test_memory_does_not_drop_oldest_during_consolidation(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """
+        Verify that the oldest entry in short-term memory is still present when
+        building the consolidation prompt. Fixes Issue #186.
+        """
+        mock_llm.generate.return_value = llm_response_factory(
+            "Consolidated memory summary"
+        )
+
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=2,
+            consolidation_capacity=1,
+            llm_model="provider/test_model",
+        )
+        memory.llm = mock_llm
+
+        # Fill to capacity + consolidation_capacity + 1 to trigger consolidation
+        with patch("rich.console.Console"):
+            for i in range(4):
+                memory.step_content = {"observation": f"critical event at step {i}"}
+                memory.process_step(pre_step=True)
+                mock_agent.model.steps = i + 1
+                memory.step_content = {"action": f"response to step {i}"}
+                memory.process_step()
+
+        # Get the arguments passed to llm.generate during consolidation
+        call_args = mock_llm.generate.call_args[0][0]
+
+        # The oldest entry MUST be in the prompt sent to the LLM
+        assert (
+            "critical event at step 0" in call_args
+        ), "Oldest memory entry was silently dropped before consolidation!"
