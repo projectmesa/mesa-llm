@@ -1,3 +1,4 @@
+import copy
 from typing import TYPE_CHECKING
 
 from mesa_llm.reasoning.reasoning import (
@@ -30,6 +31,7 @@ class ReWOOReasoning(Reasoning):
         self.remaining_tool_calls = 0  # Initialize remaining tool calls
         self.current_plan: Plan | None = None
         self.current_obs: Observation | None = None
+        self._all_tool_calls = []  # Store original tool calls to avoid mutation during replay
 
     def get_rewoo_system_prompt(self, obs: Observation) -> str:
         memory = getattr(self.agent, "memory", None)
@@ -110,14 +112,16 @@ class ReWOOReasoning(Reasoning):
         """
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
+            # Use original tool calls count to calculate index (avoid mutation-induced bugs)
             index_of_tool = (
-                len(self.current_plan.tool_calls) - self.remaining_tool_calls
+                len(self._all_tool_calls) - self.remaining_tool_calls
             )
             self.remaining_tool_calls -= 1
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
-            current_plan = self.current_plan
-            current_plan.tool_calls = tool_call
-            return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
+            # Return a plan with only the required tool call, without mutating current_plan
+            temp_plan = copy.copy(self.current_plan)
+            temp_plan.tool_calls = tool_call
+            return Plan(llm_plan=temp_plan, step=self.current_obs.step, ttl=ttl)
 
         # If no prompt is provided, use the agent's default step prompt
         if prompt is None:
@@ -152,8 +156,11 @@ class ReWOOReasoning(Reasoning):
         # Count the number of tool calls in the response and set remaining_tool_calls
         if hasattr(rewoo_plan.llm_plan, "tool_calls"):
             self.remaining_tool_calls = len(rewoo_plan.llm_plan.tool_calls)
+            # Store a copy of the original tool calls to avoid mutation during replay
+            self._all_tool_calls = list(rewoo_plan.llm_plan.tool_calls)
         else:
             self.remaining_tool_calls = 0
+            self._all_tool_calls = []
         self.current_plan = rewoo_plan.llm_plan
 
         return rewoo_plan
@@ -170,14 +177,16 @@ class ReWOOReasoning(Reasoning):
         """
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
+            # Use original tool calls count to calculate index (avoid mutation-induced bugs)
             index_of_tool = (
-                len(self.current_plan.tool_calls) - self.remaining_tool_calls
+                len(self._all_tool_calls) - self.remaining_tool_calls
             )
             self.remaining_tool_calls -= 1
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
-            current_plan = self.current_plan
-            current_plan.tool_calls = tool_call
-            return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
+            # Return a plan with only the required tool call, without mutating current_plan
+            temp_plan = copy.copy(self.current_plan)
+            temp_plan.tool_calls = tool_call
+            return Plan(llm_plan=temp_plan, step=self.current_obs.step, ttl=ttl)
 
         # If no prompt is provided, use the agent's default step prompt
         if prompt is None:
@@ -212,8 +221,11 @@ class ReWOOReasoning(Reasoning):
         # Count the number of tool calls in the response and set remaining_tool_calls
         if hasattr(rewoo_plan.llm_plan, "tool_calls"):
             self.remaining_tool_calls = len(rewoo_plan.llm_plan.tool_calls)
+            # Store a copy of the original tool calls to avoid mutation during replay
+            self._all_tool_calls = list(rewoo_plan.llm_plan.tool_calls)
         else:
             self.remaining_tool_calls = 0
+            self._all_tool_calls = []
         self.current_plan = rewoo_plan.llm_plan
 
         return rewoo_plan
