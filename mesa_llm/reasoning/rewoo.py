@@ -112,10 +112,12 @@ class ReWOOReasoning(Reasoning):
         """
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
-            # Use original tool calls count to calculate index (avoid mutation-induced bugs)
-            index_of_tool = len(self._all_tool_calls) - self.remaining_tool_calls
+            # _all_tool_calls is the single source of truth; fall back to current_plan
+            # if state was set externally without going through plan generation
+            all_calls = self._all_tool_calls or self.current_plan.tool_calls
+            index_of_tool = len(all_calls) - self.remaining_tool_calls
             self.remaining_tool_calls -= 1
-            tool_call = [self.current_plan.tool_calls[index_of_tool]]
+            tool_call = [all_calls[index_of_tool]]
             # Return a plan with only the required tool call, without mutating current_plan
             temp_plan = copy.copy(self.current_plan)
             temp_plan.tool_calls = tool_call
@@ -175,10 +177,12 @@ class ReWOOReasoning(Reasoning):
         """
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
-            # Use original tool calls count to calculate index (avoid mutation-induced bugs)
-            index_of_tool = len(self._all_tool_calls) - self.remaining_tool_calls
+            # _all_tool_calls is the single source of truth; fall back to current_plan
+            # if state was set externally without going through plan generation
+            all_calls = self._all_tool_calls or self.current_plan.tool_calls
+            index_of_tool = len(all_calls) - self.remaining_tool_calls
             self.remaining_tool_calls -= 1
-            tool_call = [self.current_plan.tool_calls[index_of_tool]]
+            tool_call = [all_calls[index_of_tool]]
             # Return a plan with only the required tool call, without mutating current_plan
             temp_plan = copy.copy(self.current_plan)
             temp_plan.tool_calls = tool_call
