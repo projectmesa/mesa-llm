@@ -6,6 +6,7 @@ from mesa.space import MultiGrid
 from rich import print
 
 from examples.negotiation.agents import BuyerAgent, SellerAgent
+from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.reasoning import Reasoning
 
 
@@ -40,11 +41,7 @@ class NegotiationModel(Model):
 
         # Enable optimized parallel stepping if parallel_stepping is enabled
         if self.parallel_stepping:
-            from mesa_llm.parallel_stepping import (
-                enable_automatic_parallel_stepping_optimized,
-            )
-
-            enable_automatic_parallel_stepping_optimized(
+            enable_automatic_parallel_stepping(
                 mode="asyncio",
                 max_concurrent=min(
                     20, initial_buyers + 2

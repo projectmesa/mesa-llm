@@ -17,9 +17,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Global variable to control parallel stepping mode
-_PARALLEL_STEPPING_MODE = "asyncio"  # or "threading"
-
 
 class EventLoopManager:
     """Manages event loops for different threads."""
@@ -73,7 +70,6 @@ class SemaphorePool:
 
 # Global managers
 _loop_manager = EventLoopManager()
-_semaphore_pool = SemaphorePool()
 
 
 async def _sync_step(agent: Agent) -> None:
@@ -85,7 +81,7 @@ async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
     """
     Optimized parallel agent stepping with proper concurrency control.
     """
-    semaphore = _semaphore_pool.get_semaphore()
+    semaphore = _parallel_config.semaphore_pool.get_semaphore()
 
     async def step_with_semaphore(agent):
         async with semaphore:
@@ -106,7 +102,7 @@ async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
 
 
 def step_agents_multithreaded(
-    agents: list[Agent | LLMAgent], max_workers: int = None
+    agents: list[Agent | LLMAgent], max_workers: int | None = None
 ) -> None:
     """
     Optimized multithreaded agent stepping with proper resource management.
@@ -153,7 +149,7 @@ def step_agents_multithreaded(
 
 def step_agents_parallel_sync(agents: list[Agent | LLMAgent]) -> None:
     """Synchronous wrapper for parallel stepping using the global mode."""
-    if _PARALLEL_STEPPING_MODE == "asyncio":
+    if _parallel_config.mode == "asyncio":
         try:
             asyncio.get_running_loop()
             # If in event loop, use thread
@@ -165,14 +161,25 @@ def step_agents_parallel_sync(agents: list[Agent | LLMAgent]) -> None:
         except RuntimeError:
             # No event loop - create one
             asyncio.run(step_agents_parallel(agents))
-    elif _PARALLEL_STEPPING_MODE == "threading":
+    elif _parallel_config.mode == "threading":
         step_agents_multithreaded(agents)
     else:
-        raise ValueError(f"Unknown parallel stepping mode: {_PARALLEL_STEPPING_MODE}")
+        raise ValueError(f"Unknown parallel stepping mode: {_parallel_config.mode}")
 
 
 # Patch Mesa's shuffle_do for automatic parallel detection
 _original_shuffle_do = AgentSet.shuffle_do
+
+
+# Configuration class to avoid global statements
+class ParallelSteppingConfig:
+    def __init__(self):
+        self.mode = "asyncio"
+        self.semaphore_pool = SemaphorePool()
+
+
+# Global configuration instance
+_parallel_config = ParallelSteppingConfig()
 
 
 def enable_automatic_parallel_stepping(
@@ -186,15 +193,12 @@ def enable_automatic_parallel_stepping(
         max_concurrent: Maximum number of concurrent operations
         request_timeout: Timeout for operations in seconds
     """
-    global _PARALLEL_STEPPING_MODE
     if mode not in ("asyncio", "threading"):
         raise ValueError("mode must be either 'asyncio' or 'threading'")
 
-    _PARALLEL_STEPPING_MODE = mode
-
-    # Update semaphore pool with new max concurrent
-    global _semaphore_pool
-    _semaphore_pool = SemaphorePool(max_concurrent=max_concurrent)
+    # Update configuration
+    _parallel_config.mode = mode
+    _parallel_config.semaphore_pool = SemaphorePool(max_concurrent=max_concurrent)
 
     # Enhanced shuffle_do with optimized stepping
     def _enhanced_shuffle_do_optimized(self, method: str, *args, **kwargs):

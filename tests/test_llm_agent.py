@@ -51,14 +51,16 @@ def create_dummy_model(seed=42, grid_type="MultiGrid", **grid_kwargs):
 
 def create_test_agent(
     model,
-    pos=None,
     reasoning=ReActReasoning,
     system_prompt="You are an agent in a simulation.",
     vision=-1,
-    internal_state=["test_state"],
+    internal_state=None,
     memory_config=None,
+    pos=None,
 ):
     """Create a standardized test agent."""
+    if internal_state is None:
+        internal_state = ["test_state"]
     agents = LLMAgent.create_agents(
         model,
         n=1,

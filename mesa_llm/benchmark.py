@@ -7,6 +7,12 @@ import os
 import statistics
 import time
 
+# Import test models at module level to avoid conditional imports
+try:
+    from tests.test_models import PerformanceTestModel
+except ImportError:
+    PerformanceTestModel = None
+
 
 class PerformanceBenchmark:
     """Performance testing and analysis framework"""
@@ -20,10 +26,8 @@ class PerformanceBenchmark:
         """Run performance test for specific agent count"""
         print(f"\n🔬 Testing {n_agents} agents...")
 
-        # Import test models if not provided
+        # Use test model class (imported at module level)
         if test_model_class is None:
-            from tests.test_models import PerformanceTestModel
-
             test_model_class = PerformanceTestModel
 
         sequential_times = []
@@ -33,17 +37,13 @@ class PerformanceBenchmark:
             print(f"  Run {run + 1}/{runs}...")
 
             # Test sequential execution
-            start_time = time.time()
             model_seq = test_model_class(n_agents=n_agents, enable_parallel=False)
-            creation_time = time.time() - start_time
-
             step_start = time.time()
             model_seq.step_sequential()
             step_time = time.time() - step_start
             sequential_times.append(step_time)
 
             # Test parallel execution
-            start_time = time.time()
             model_par = test_model_class(n_agents=n_agents, enable_parallel=True)
             step_start = time.time()
             model_par.step_parallel()
@@ -74,7 +74,7 @@ class PerformanceBenchmark:
         return result
 
     def run_benchmark(
-        self, agent_counts: list[int] = None, test_model_class=None
+        self, agent_counts: list[int] | None = None, test_model_class=None
     ) -> list[dict]:
         """Run comprehensive performance benchmark"""
         if agent_counts is None:

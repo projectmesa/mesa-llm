@@ -93,7 +93,7 @@ def main():
     # Run benchmark with increasing agent counts
     agent_counts = [5, 10, 15, 20, 25, 30, 40, 50]
 
-    results = benchmark.run_benchmark(
+    benchmark.run_benchmark(
         agent_counts=agent_counts, test_model_class=PerformanceTestModel
     )
 
