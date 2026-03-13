@@ -5,7 +5,7 @@ import re
 
 import pytest
 from mesa.agent import Agent
-from mesa.discrete_space import OrthogonalMooreGrid, OrthogonalVonNeumannGrid
+from mesa.discrete_space import OrthogonalMooreGrid
 from mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
 

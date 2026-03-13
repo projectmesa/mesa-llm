@@ -48,9 +48,7 @@ def _get_agent_position(agent: "LLMAgent") -> Any:
     if pos is not None:
         return pos
 
-    raise ValueError(
-        "Could not infer agent position from `cell` or `pos`."
-    )
+    raise ValueError("Could not infer agent position from `cell` or `pos`.")
 
 
 def _cell_is_full(cell) -> bool:
@@ -131,6 +129,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         # Use cell type to pick coordinate convention:
         # Real Mesa Cell objects -> (x, y); SimpleNamespace dummy cells -> (row, col)
         from types import SimpleNamespace as _SN
+
         is_real_cell = not isinstance(current_cell, _SN)
         target_cell = None
 
