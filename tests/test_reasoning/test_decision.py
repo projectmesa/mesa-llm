@@ -186,6 +186,64 @@ class TestDecisionReasoning:
             ttl=3,
         )
 
+    def test_get_decision_prompt_without_optional_memory_methods(self, mock_agent):
+        mock_agent.memory = Mock(spec=[])
+
+        reasoning = DecisionReasoning(mock_agent)
+        obs = Observation(step=1, self_state={}, local_state={})
+
+        prompt_list = reasoning.get_decision_prompt(obs)
+
+        assert prompt_list == ["current observation: \n" + str(obs)]
+
+    def test_plan_uses_structured_response_when_available(
+        self, llm_response_factory, mock_agent
+    ):
+        mock_agent.memory = Mock()
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
+        mock_agent.memory.get_communication_history.return_value = ""
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent._step_display_data = {}
+
+        parsed_output = DecisionOutput(
+            goal="Reach food",
+            constraints=["One movement per turn"],
+            known_facts=["Food is visible nearby"],
+            unknowns=["Whether the route stays open"],
+            assumptions=["The route remains open this step"],
+            options=[
+                DecisionOption(
+                    name="move_to_food",
+                    description="Move toward visible food",
+                    tradeoffs=["Fast", "May be contested"],
+                    score=0.88,
+                )
+            ],
+            chosen_option="move_to_food",
+            rationale="It best advances the immediate goal.",
+            confidence=0.78,
+            risks=["Another agent may reach it first"],
+            next_action="move_to_food",
+        )
+        rsp = llm_response_factory(content="ignored")
+        rsp.choices[0].message.parsed = parsed_output
+        mock_agent.llm.generate.return_value = rsp
+
+        mock_plan = Plan(step=1, llm_plan=Mock())
+        reasoning = DecisionReasoning(mock_agent)
+        reasoning.execute_tool_call = Mock(return_value=mock_plan)
+
+        obs = Observation(step=1, self_state={}, local_state={})
+        result = reasoning.plan(obs=obs, prompt="Custom prompt")
+
+        assert result == mock_plan
+        mock_agent.memory.add_to_memory.assert_called_once_with(
+            type="decision", content=parsed_output.model_dump()
+        )
+
     def test_plan_no_prompt_error(self, mock_agent):
         mock_agent.step_prompt = None
         mock_agent.memory = Mock()

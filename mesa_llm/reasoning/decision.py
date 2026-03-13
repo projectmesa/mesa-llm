@@ -1,4 +1,3 @@
-import json
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -68,8 +67,18 @@ class DecisionReasoning(Reasoning):
         """
 
     def get_decision_prompt(self, obs: Observation) -> list[str]:
-        prompt_list = [self.agent.memory.get_prompt_ready()]
-        last_communication = self.agent.memory.get_communication_history()
+        prompt_list = []
+
+        get_prompt_ready = getattr(self.agent.memory, "get_prompt_ready", None)
+        if callable(get_prompt_ready):
+            prompt_list.append(get_prompt_ready())
+
+        get_communication_history = getattr(
+            self.agent.memory, "get_communication_history", None
+        )
+        last_communication = (
+            get_communication_history() if callable(get_communication_history) else ""
+        )
 
         if last_communication:
             prompt_list.append("last communication: \n" + str(last_communication))
@@ -77,6 +86,19 @@ class DecisionReasoning(Reasoning):
             prompt_list.append("current observation: \n" + str(obs))
 
         return prompt_list
+
+    def _parse_decision_output(self, response) -> dict:
+        """Normalize structured LLM output into a dictionary."""
+        message = response.choices[0].message
+        parsed = getattr(message, "parsed", None)
+
+        if isinstance(parsed, DecisionOutput):
+            return parsed.model_dump()
+
+        if isinstance(parsed, dict):
+            return DecisionOutput.model_validate(parsed).model_dump()
+
+        return DecisionOutput.model_validate_json(message.content).model_dump()
 
     def plan(
         self,
@@ -112,7 +134,7 @@ class DecisionReasoning(Reasoning):
             response_format=DecisionOutput,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
+        formatted_response = self._parse_decision_output(rsp)
         self.agent.memory.add_to_memory(type="decision", content=formatted_response)
 
         if hasattr(self.agent, "_step_display_data"):
@@ -160,7 +182,7 @@ class DecisionReasoning(Reasoning):
             response_format=DecisionOutput,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
+        formatted_response = self._parse_decision_output(rsp)
         await self.agent.memory.aadd_to_memory(
             type="decision", content=formatted_response
         )
