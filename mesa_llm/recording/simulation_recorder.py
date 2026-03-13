@@ -9,7 +9,6 @@ import json
 import logging
 import pickle
 import uuid
-import warnings
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
