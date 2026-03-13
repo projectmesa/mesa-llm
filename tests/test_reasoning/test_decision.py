@@ -282,7 +282,10 @@ class TestDecisionReasoning:
                             {
                                 "name": "move_east",
                                 "description": "Move one cell east",
-                                "tradeoffs": ["Improves coordination", "May increase exposure"],
+                                "tradeoffs": [
+                                    "Improves coordination",
+                                    "May increase exposure",
+                                ],
                                 "score": 0.74,
                             }
                         ],
