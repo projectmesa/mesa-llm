@@ -77,7 +77,11 @@ class LLMAgent(Agent):
         return f"LLMAgent {self.unique_id}"
 
     def __repr__(self) -> str:
-        memory_size = len(self.memory.short_term_memory) if hasattr(self.memory, "short_term_memory") else 0
+        memory_size = (
+            len(self.memory.short_term_memory)
+            if hasattr(self.memory, "short_term_memory")
+            else 0
+        )
         return (
             f"LLMAgent("
             f"unique_id={self.unique_id}, "
@@ -155,7 +159,9 @@ class LLMAgent(Agent):
             grid = getattr(self.model, "grid", None)
             space = getattr(self.model, "space", None)
 
-            if grid and isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+            if grid and isinstance(
+                grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
+            ):
                 agent_cell = next(
                     (cell for cell in grid.all_cells if self in cell.agents),
                     None,
@@ -168,10 +174,12 @@ class LLMAgent(Agent):
 
             elif space and isinstance(space, ContinuousSpace):
                 import math
+
                 my_pos = getattr(self, "pos", None)
                 if my_pos is not None:
                     neighbors = [
-                        a for a in self.model.agents
+                        a
+                        for a in self.model.agents
                         if a is not self
                         and getattr(a, "pos", None) is not None
                         and math.dist(my_pos, a.pos) <= self.vision

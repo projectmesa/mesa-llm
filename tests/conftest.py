@@ -3,8 +3,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 from litellm import Choices, Message, ModelResponse
-from mesa.model import Model
 from mesa.discrete_space import OrthogonalMooreGrid
+from mesa.model import Model
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_memory import ShortTermMemory
