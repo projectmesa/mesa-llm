@@ -38,6 +38,15 @@ class NegotiationModel(Model):
         self.parallel_stepping = parallel_stepping
         self.grid = MultiGrid(self.height, self.width, torus=False)
 
+        # Enable optimized parallel stepping if parallel_stepping is enabled
+        if self.parallel_stepping:
+            from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping_optimized
+            enable_automatic_parallel_stepping_optimized(
+                mode="asyncio",
+                max_concurrent=min(20, initial_buyers + 2),  # Adjust based on agent count
+                request_timeout=30.0
+            )
+
         # ---------------------Create the buyer agents---------------------
         buyer_system_prompt = "You are a buyer in a negotiation game. You are interested in buying a product from a seller. You are also interested in negotiating with the seller. Prefer speaking over changing location as long as you have a seller in sight. If no seller is in sight, move around randomly until yous see one"
         buyer_internal_state = ""

@@ -6,6 +6,7 @@ from .parallel_stepping import (
     enable_automatic_parallel_stepping,
     step_agents_parallel,
     step_agents_parallel_sync,
+    step_agents_multithreaded,
 )
 from .reasoning.reasoning import Observation, Plan
 from .recording.record_model import record_model
@@ -22,6 +23,8 @@ __all__ = [
     "record_model",
     "step_agents_parallel",
     "step_agents_parallel_sync",
+    "step_agents_multithreaded",
+    "PerformanceBenchmark"
 ]
 
 __title__ = "Mesa-LLM"
