@@ -30,11 +30,7 @@ class ReActReasoning(Reasoning):
         super().__init__(agent=agent)
 
     def __repr__(self) -> str:
-        return (
-            f"ReActReasoning("
-            f"agent_id={self.agent.unique_id}, "
-            f"remaining_tool_calls={self.remaining_tool_calls})"
-        )
+        return f"ReActReasoning(agent_id={self.agent.unique_id})"
 
     def get_react_system_prompt(self) -> str:
         system_prompt = """
