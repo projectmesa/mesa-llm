@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from types import SimpleNamespace
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
@@ -84,10 +85,7 @@ def _is_out_of_bounds(space, pos) -> bool:
     dims = getattr(space, "dimensions", None)
     if dims is None:
         return False
-    for i, (lo, hi) in enumerate(dims):
-        if pos[i] < lo or pos[i] >= hi:
-            return True
-    return False
+    return any(pos[i] < lo or pos[i] >= hi for i, (lo, hi) in enumerate(dims))
 
 
 def _torus_adj(space, pos) -> tuple:
@@ -130,8 +128,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         current_coord = current_cell.coordinate
         # Use cell type to pick coordinate convention:
         # Real Mesa Cell objects -> (x, y); SimpleNamespace dummy cells -> (row, col)
-        from types import SimpleNamespace as _SN
-        is_real_cell = not isinstance(current_cell, _SN)
+        is_real_cell = not isinstance(current_cell, SimpleNamespace)
         target_cell = None
 
         if is_real_cell:
@@ -231,9 +228,8 @@ def teleport_to_location(
         # Also check via agents list for real grids with capacity=1
         agents_in_cell = list(getattr(target_cell, "agents", []))
         capacity = getattr(target_cell, "capacity", None)
-        if agent not in agents_in_cell and len(agents_in_cell) > 0:
-            if capacity is None or len(agents_in_cell) >= capacity:
-                raise ValueError(f"Cell not empty: {target_coordinates}")
+        if agent not in agents_in_cell and len(agents_in_cell) > 0 and (capacity is None or len(agents_in_cell) >= capacity):
+            raise ValueError(f"Cell not empty: {target_coordinates}")
         # Remove from current cell
         current_cell = getattr(agent, "cell", None)
         if current_cell is not None:
