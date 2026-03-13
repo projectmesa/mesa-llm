@@ -5,9 +5,9 @@ import re
 
 import pytest
 from mesa.agent import Agent
-from mesa.discrete_space import OrthogonalMooreGrid
+from mesa.discrete_space import OrthogonalMooreGrid, OrthogonalVonNeumannGrid
+from mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
-from mesa.space import ContinuousSpace, MultiGrid, SingleGrid
 
 from mesa_llm import Plan
 from mesa_llm.llm_agent import LLMAgent
@@ -19,7 +19,7 @@ def test_apply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             system_prompt = "You are an agent in a simulation."
@@ -35,7 +35,11 @@ def test_apply_plan_adds_to_memory(monkeypatch):
             x, y = pos
 
             agent = agents.to_list()[0]
-            self.grid.place_agent(agent, (x, y))
+            cell = self.grid._cells.get((x, y))
+            if cell:
+                cell.add_agent(agent)
+                agent.cell = cell
+                agent.pos = (x, y)
             return agent
 
     model = DummyModel()
@@ -186,7 +190,7 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos, agent_class=LLMAgent):
             system_prompt = "You are an agent in a simulation."
@@ -200,7 +204,11 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
             )
             x, y = pos
             agent = agents.to_list()[0]
-            self.grid.place_agent(agent, (x, y))
+            cell = self.grid._cells.get((x, y))
+            if cell:
+                cell.add_agent(agent)
+                agent.cell = cell
+                agent.pos = (x, y)
             return agent
 
     model = DummyModel()
@@ -242,7 +250,7 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos, agent_class=LLMAgent):
             system_prompt = "You are an agent in a simulation."
@@ -256,7 +264,11 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
             )
             x, y = pos
             agent = agents.to_list()[0]
-            self.grid.place_agent(agent, (x, y))
+            cell = self.grid._cells.get((x, y))
+            if cell:
+                cell.add_agent(agent)
+                agent.cell = cell
+                agent.pos = (x, y)
             return agent
 
     model = DummyModel()
@@ -287,8 +299,8 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
     monkeypatch.setattr(recipient.memory, "add_to_memory", fake_add_to_memory)
 
     result = sender.send_message("hello", recipients=[recipient])
-    pattern = r"LLMAgent 1 → \[<mesa_llm\.llm_agent\.LLMAgent object at 0x[0-9A-Fa-f]+>\] : hello"
-    assert re.match(pattern, result)
+    pattern = r"LLMAgent 1 → \[LLMAgent\(unique_id=\d+.*?\)\] : hello"
+    assert re.match(pattern, result, re.DOTALL)
 
     # sender + recipient memory => should be called twice
     assert call_counter["count"] == 2
@@ -299,7 +311,7 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             system_prompt = "You are an agent in a simulation."
@@ -314,7 +326,11 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
 
             x, y = pos
             agent = agents.to_list()[0]
-            self.grid.place_agent(agent, (x, y))
+            cell = self.grid._cells.get((x, y))
+            if cell:
+                cell.add_agent(agent)
+                agent.cell = cell
+                agent.pos = (x, y)
             return agent
 
     model = DummyModel()
@@ -346,7 +362,7 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             agents = LLMAgent.create_agents(
@@ -359,7 +375,11 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
             )
             x, y = pos
             agent = agents.to_list()[0]
-            self.grid.place_agent(agent, (x, y))
+            cell = self.grid._cells.get((x, y))
+            if cell:
+                cell.add_agent(agent)
+                agent.cell = cell
+                agent.pos = (x, y)
             return agent
 
     model = DummyModel()
@@ -398,7 +418,7 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=1)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
     model = DummyModel()
 
@@ -484,7 +504,7 @@ def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
     model = GridModel()
     agents = LLMAgent.create_agents(
@@ -501,7 +521,11 @@ def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
     agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
     neighbor.memory = ShortTermMemory(agent=neighbor, n=5, display=True)
 
-    model.grid.place_agent(agent, (1, 1))
+    cell = model.grid._cells.get((1, 1))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (1, 1)
     neighbor.pos = None
     neighbor.cell = MockCell(coordinate=(2, 2))
 
@@ -517,7 +541,7 @@ def test_safer_cell_access_neighbor_without_cell_or_pos(monkeypatch):
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
     model = GridModel()
     agents = LLMAgent.create_agents(
@@ -534,7 +558,11 @@ def test_safer_cell_access_neighbor_without_cell_or_pos(monkeypatch):
     agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
     neighbor.memory = ShortTermMemory(agent=neighbor, n=5, display=True)
 
-    model.grid.place_agent(agent, (1, 1))
+    cell = model.grid._cells.get((1, 1))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (1, 1)
     neighbor.pos = None
     if hasattr(neighbor, "cell"):
         delattr(neighbor, "cell")
@@ -551,7 +579,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
     class ContModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+            self.space = ContinuousSpace(dimensions=[[0, 10.0], [0, 10.0]], torus=False)
 
     model = ContModel()
     agents = LLMAgent.create_agents(
@@ -569,9 +597,9 @@ def test_generate_obs_with_continuous_space(monkeypatch):
     for a in agents:
         a.memory = ShortTermMemory(agent=a, n=5, display=True)
 
-    model.space.place_agent(agent, (5.0, 5.0))
-    model.space.place_agent(nearby, (6.0, 5.0))  # distance ≈ 1.0
-    model.space.place_agent(far, (9.0, 9.0))  # distance ≈ 5.66
+    agent.pos = (5.0, 5.0)
+    nearby.pos = (6.0, 5.0)  # distance ≈ 1.0
+    far.pos = (9.0, 9.0)  # distance ≈ 5.66
 
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *a, **kw: None)
     obs = agent.generate_obs()
@@ -587,7 +615,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(10, 10, torus=False)
+            self.grid = OrthogonalMooreGrid((10, 10), torus=False)
 
     model = GridModel()
     agents = LLMAgent.create_agents(
@@ -601,7 +629,11 @@ def test_generate_obs_vision_all_agents(monkeypatch):
     for idx, a in enumerate(agents):
         a.unique_id = idx + 1
         a.memory = ShortTermMemory(agent=a, n=5, display=True)
-        model.grid.place_agent(a, (idx, idx))
+        cell = model.grid._cells.get((idx, idx))
+        if cell:
+            cell.add_agent(a)
+            a.cell = cell
+            a.pos = (idx, idx)
 
     agent = agents.to_list()[0]
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *a, **kw: None)
@@ -650,15 +682,23 @@ def test_generate_obs_standard_grid_with_vision_radius(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             # Reverted to width/height for SingleGrid
-            self.grid = SingleGrid(width=5, height=5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = GridModel()
     agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=1)
     neighbor = LLMAgent(model=model, reasoning=ReActReasoning)
 
     # Place agents within vision distance
-    model.grid.place_agent(agent, (2, 2))
-    model.grid.place_agent(neighbor, (2, 3))
+    cell = model.grid._cells.get((2, 2))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (2, 2)
+    cell = model.grid._cells.get((2, 3))
+    if cell:
+        cell.add_agent(neighbor)
+        neighbor.cell = cell
+        neighbor.pos = (2, 3)
 
     # Mock memory to bypass API logic
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *args, **kwargs: None)
@@ -724,14 +764,22 @@ def test_generate_obs_with_non_llm_neighbor(monkeypatch):
     class MixedModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = MixedModel()
     llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
     plain = PlainAgent(model=model)
 
-    model.grid.place_agent(llm_agent, (2, 2))
-    model.grid.place_agent(plain, (3, 3))
+    cell = model.grid._cells.get((2, 2))
+    if cell:
+        cell.add_agent(llm_agent)
+        llm_agent.cell = cell
+        llm_agent.pos = (2, 2)
+    cell = model.grid._cells.get((3, 3))
+    if cell:
+        cell.add_agent(plain)
+        plain.cell = cell
+        plain.pos = (3, 3)
 
     monkeypatch.setattr(llm_agent.memory, "add_to_memory", lambda *a, **kw: None)
 
@@ -757,14 +805,22 @@ async def test_agenerate_obs_with_non_llm_neighbor(monkeypatch):
     class MixedModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = MixedModel()
     llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
     plain = PlainAgent(model=model)
 
-    model.grid.place_agent(llm_agent, (2, 2))
-    model.grid.place_agent(plain, (3, 3))
+    cell = model.grid._cells.get((2, 2))
+    if cell:
+        cell.add_agent(llm_agent)
+        llm_agent.cell = cell
+        llm_agent.pos = (2, 2)
+    cell = model.grid._cells.get((3, 3))
+    if cell:
+        cell.add_agent(plain)
+        plain.cell = cell
+        plain.pos = (3, 3)
 
     async def fake_aadd_to_memory(*args, **kwargs):
         pass
@@ -790,7 +846,7 @@ def _make_send_message_model(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             agents = LLMAgent.create_agents(
@@ -802,7 +858,11 @@ def _make_send_message_model(monkeypatch):
                 internal_state=[],
             )
             agent = agents.to_list()[0]
-            self.grid.place_agent(agent, pos)
+            cell = self.grid._cells.get(pos)
+            if cell:
+                cell.add_agent(agent)
+                agent.cell = cell
+                agent.pos = pos
             return agent
 
     model = DummyModel()

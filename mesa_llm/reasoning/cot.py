@@ -28,6 +28,9 @@ class CoTReasoning(Reasoning):
     def __init__(self, agent: "LLMAgent"):
         super().__init__(agent=agent)
 
+    def __repr__(self) -> str:
+        return f"CoTReasoning(agent_id={self.agent.unique_id})"
+
     def get_cot_system_prompt(self, obs: Observation) -> str:
         memory = getattr(self.agent, "memory", None)
         long_term_memory = ""
