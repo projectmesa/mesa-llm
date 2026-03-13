@@ -49,9 +49,7 @@ def _get_agent_position(agent: "LLMAgent") -> Any:
     if pos is not None:
         return pos
 
-    raise ValueError(
-        "Could not infer agent position from `cell` or `pos`."
-    )
+    raise ValueError("Could not infer agent position from `cell` or `pos`.")
 
 
 def _cell_is_full(cell) -> bool:
