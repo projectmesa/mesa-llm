@@ -1,6 +1,6 @@
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-from types import SimpleNamespace
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
@@ -49,9 +49,7 @@ def _get_agent_position(agent: "LLMAgent") -> Any:
     if pos is not None:
         return pos
 
-    raise ValueError(
-        "Could not infer agent position from `cell` or `pos`."
-    )
+    raise ValueError("Could not infer agent position from `cell` or `pos`.")
 
 
 def _cell_is_full(cell) -> bool:
@@ -228,7 +226,11 @@ def teleport_to_location(
         # Also check via agents list for real grids with capacity=1
         agents_in_cell = list(getattr(target_cell, "agents", []))
         capacity = getattr(target_cell, "capacity", None)
-        if agent not in agents_in_cell and len(agents_in_cell) > 0 and (capacity is None or len(agents_in_cell) >= capacity):
+        if (
+            agent not in agents_in_cell
+            and len(agents_in_cell) > 0
+            and (capacity is None or len(agents_in_cell) >= capacity)
+        ):
             raise ValueError(f"Cell not empty: {target_coordinates}")
         # Remove from current cell
         current_cell = getattr(agent, "cell", None)
