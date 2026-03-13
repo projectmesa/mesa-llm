@@ -29,6 +29,13 @@ class ReActReasoning(Reasoning):
     def __init__(self, agent: "LLMAgent"):
         super().__init__(agent=agent)
 
+    def __repr__(self) -> str:
+        return (
+            f"ReActReasoning("
+            f"agent_id={self.agent.unique_id}, "
+            f"remaining_tool_calls={self.remaining_tool_calls})"
+        )
+
     def get_react_system_prompt(self) -> str:
         system_prompt = """
         You are an autonomous agent in a simulation environment.
