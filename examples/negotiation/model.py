@@ -40,11 +40,16 @@ class NegotiationModel(Model):
 
         # Enable optimized parallel stepping if parallel_stepping is enabled
         if self.parallel_stepping:
-            from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping_optimized
+            from mesa_llm.parallel_stepping import (
+                enable_automatic_parallel_stepping_optimized,
+            )
+
             enable_automatic_parallel_stepping_optimized(
                 mode="asyncio",
-                max_concurrent=min(20, initial_buyers + 2),  # Adjust based on agent count
-                request_timeout=30.0
+                max_concurrent=min(
+                    20, initial_buyers + 2
+                ),  # Adjust based on agent count
+                request_timeout=30.0,
             )
 
         # ---------------------Create the buyer agents---------------------

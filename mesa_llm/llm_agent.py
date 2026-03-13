@@ -1,11 +1,9 @@
 import asyncio
 import time
-from typing import Any
 
 from mesa import Agent, Model
 from mesa.space import (
     ContinuousSpace,
-    NetworkGrid,
     MultiGrid,
     SingleGrid,
 )
@@ -24,66 +22,64 @@ class OptimizedMessageBus:
     """
     Optimized message bus for O(n) agent communication instead of O(n²).
     """
-    
+
     def __init__(self):
         self.message_queue = asyncio.Queue()
         self.subscribers = {}
         self.batch_processor = None
-    
+
     async def broadcast_message(self, sender, message, recipients):
         """O(n) message broadcasting with batching."""
         message_data = {
-            'sender': sender.unique_id,
-            'message': message,
-            'recipients': [r.unique_id for r in recipients],
-            'timestamp': time.time()
+            "sender": sender.unique_id,
+            "message": message,
+            "recipients": [r.unique_id for r in recipients],
+            "timestamp": time.time(),
         }
-        
+
         # Add to batch queue
         await self.message_queue.put(message_data)
-    
+
     async def process_message_batch(self):
         """Process messages in batches."""
         batch = []
         while not self.message_queue.empty() and len(batch) < 50:
             batch.append(await self.message_queue.get())
-        
+
         # Group by recipients for efficient delivery
         recipient_groups = {}
         for msg in batch:
-            for recipient_id in msg['recipients']:
+            for recipient_id in msg["recipients"]:
                 if recipient_id not in recipient_groups:
                     recipient_groups[recipient_id] = []
                 recipient_groups[recipient_id].append(msg)
-        
+
         # Deliver to each recipient
         delivery_tasks = []
         for recipient_id, messages in recipient_groups.items():
             recipient = self.get_agent_by_id(recipient_id)
             if recipient:
-                delivery_tasks.append(
-                    self.deliver_messages_batch(recipient, messages)
-                )
-        
+                delivery_tasks.append(self.deliver_messages_batch(recipient, messages))
+
         await asyncio.gather(*delivery_tasks, return_exceptions=True)
-    
+
     def deliver_messages_batch(self, recipient, messages):
         """Deliver batch of messages to a recipient."""
         for msg in messages:
             recipient.memory.add_to_memory(
                 type="message",
                 content={
-                    "message": msg['message'],
-                    "sender": msg['sender'],
-                    "recipients": msg['recipients'],
+                    "message": msg["message"],
+                    "sender": msg["sender"],
+                    "recipients": msg["recipients"],
                 },
             )
-    
+
     def get_agent_by_id(self, agent_id):
         """Get agent by ID from model."""
-        if hasattr(self, 'model') and hasattr(self.model, 'agents'):
+        if hasattr(self, "model") and hasattr(self.model, "agents"):
             for agent in self.model.agents:
-                if hasattr(agent, 'unique_id') and agent.unique_id == agent_id:
+                if hasattr(agent, "unique_id") and agent.unique_id == agent_id:
                     return agent
         return None
 
@@ -123,13 +119,13 @@ class LLMAgent(Agent):
         self.model = model
         self.step_prompt = step_prompt
         self.llm = ModuleLLM(
-            llm_model=llm_model, 
+            llm_model=llm_model,
             system_prompt=system_prompt,
-            enable_caching=True,      # Enable response caching
-            enable_batching=True,     # Enable request batching
-            cache_size=1000,         # Cache up to 1000 responses
-            cache_ttl=300.0,         # Cache for 5 minutes
-            batch_size=10            # Batch up to 10 requests
+            enable_caching=True,  # Enable response caching
+            enable_batching=True,  # Enable request batching
+            cache_size=1000,  # Cache up to 1000 responses
+            cache_ttl=300.0,  # Cache for 5 minutes
+            batch_size=10,  # Batch up to 10 requests
         )
 
         self.memory = STLTMemory(

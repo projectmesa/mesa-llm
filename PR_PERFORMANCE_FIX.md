@@ -16,9 +16,9 @@ Agents: 50, Step Time: 1805.0s, Per-Agent: 36.10s  (40x slower)
 ### **After Fix:**
 ```
 📈 PERFORMANCE BENCHMARK RESULTS
-================================================================================       
+================================================================================
 Agents   Sequential   Parallel     Speedup    Efficiency
---------------------------------------------------------------------------------       
+--------------------------------------------------------------------------------
 5        0.05s        0.02s        2.44x       0.49x
 10       0.10s        0.02s        5.41x       0.54x
 15       0.16s        0.03s        5.00x       0.33x
@@ -45,7 +45,7 @@ Agents   Sequential   Parallel     Speedup    Efficiency
 # NEW: Efficient parallel stepping
 async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
     semaphore = _semaphore_pool.get_semaphore()
-    
+
     async def step_with_semaphore(agent):
         async with semaphore:
             try:
@@ -56,7 +56,7 @@ async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
                     await loop.run_in_executor(None, agent.step)
             except Exception as e:
                 logger.error(f"Error stepping agent {getattr(agent, 'unique_id', 'unknown')}: {e}")
-    
+
     tasks = [step_with_semaphore(agent) for agent in agents]
     await asyncio.gather(*tasks, return_exceptions=True)
 ```
@@ -71,7 +71,7 @@ class SemaphorePool:
     def __init__(self, max_concurrent: int = 10):
         self.max_concurrent = max_concurrent
         self._semaphores = {}
-    
+
     def get_semaphore(self):
         thread_id = threading.get_ident()
         if thread_id not in self._semaphores:
@@ -169,7 +169,7 @@ from mesa_llm.benchmark import PerformanceBenchmark
 class CustomTestModel:
     def __init__(self, n_agents, enable_parallel=True):
         # Your custom implementation
-        
+
 benchmark = PerformanceBenchmark()
 results = benchmark.run_benchmark(test_model_class=CustomTestModel)
 ```

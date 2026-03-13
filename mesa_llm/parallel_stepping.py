@@ -8,7 +8,7 @@ import asyncio
 import concurrent.futures
 import logging
 import threading
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING
 
 from mesa.agent import Agent, AgentSet
 
@@ -23,15 +23,15 @@ _PARALLEL_STEPPING_MODE = "asyncio"  # or "threading"
 
 class EventLoopManager:
     """Manages event loops for different threads."""
-    
+
     def __init__(self):
-        self.loops: Dict[int, asyncio.AbstractEventLoop] = {}
+        self.loops: dict[int, asyncio.AbstractEventLoop] = {}
         self.lock = threading.Lock()
-    
+
     def get_loop_for_thread(self) -> asyncio.AbstractEventLoop:
         """Get or create event loop for current thread."""
         thread_id = threading.get_ident()
-        
+
         with self.lock:
             if thread_id not in self.loops:
                 try:
@@ -41,7 +41,7 @@ class EventLoopManager:
                     asyncio.set_event_loop(loop)
                 self.loops[thread_id] = loop
             return self.loops[thread_id]
-    
+
     def cleanup(self):
         """Cleanup all event loops."""
         with self.lock:
@@ -53,17 +53,17 @@ class EventLoopManager:
 
 class SemaphorePool:
     """Manages semaphores for concurrency control."""
-    
+
     def __init__(self, max_concurrent: int = 10):
         self.max_concurrent = max_concurrent
-        self._semaphores: Dict[str, asyncio.Semaphore] = {}
+        self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._lock = threading.Lock()
-    
+
     def get_semaphore(self, key: str = "default") -> asyncio.Semaphore:
         """Get or create a semaphore for concurrency control."""
         thread_id = threading.get_ident()
         semaphore_key = f"{thread_id}:{key}"
-        
+
         with self._lock:
             if semaphore_key not in self._semaphores:
                 # For Python 3.9+, loop parameter is not needed
@@ -86,7 +86,7 @@ async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
     Optimized parallel agent stepping with proper concurrency control.
     """
     semaphore = _semaphore_pool.get_semaphore()
-    
+
     async def step_with_semaphore(agent):
         async with semaphore:
             try:
@@ -97,13 +97,17 @@ async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, agent.step)
             except Exception as e:
-                logger.error(f"Error stepping agent {getattr(agent, 'unique_id', 'unknown')}: {e}")
-    
+                logger.error(
+                    f"Error stepping agent {getattr(agent, 'unique_id', 'unknown')}: {e}"
+                )
+
     tasks = [step_with_semaphore(agent) for agent in agents]
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
-def step_agents_multithreaded(agents: list[Agent | LLMAgent], max_workers: int = None) -> None:
+def step_agents_multithreaded(
+    agents: list[Agent | LLMAgent], max_workers: int = None
+) -> None:
     """
     Optimized multithreaded agent stepping with proper resource management.
     """
@@ -172,13 +176,11 @@ _original_shuffle_do = AgentSet.shuffle_do
 
 
 def enable_automatic_parallel_stepping(
-    mode: str = "asyncio", 
-    max_concurrent: int = 10,
-    request_timeout: float = 30.0
+    mode: str = "asyncio", max_concurrent: int = 10, request_timeout: float = 30.0
 ) -> None:
     """
     Enable optimized automatic parallel stepping with enhanced controls.
-    
+
     Args:
         mode: Execution mode ('asyncio' or 'threading')
         max_concurrent: Maximum number of concurrent operations
@@ -187,18 +189,20 @@ def enable_automatic_parallel_stepping(
     global _PARALLEL_STEPPING_MODE
     if mode not in ("asyncio", "threading"):
         raise ValueError("mode must be either 'asyncio' or 'threading'")
-    
+
     _PARALLEL_STEPPING_MODE = mode
-    
+
     # Update semaphore pool with new max concurrent
     global _semaphore_pool
     _semaphore_pool = SemaphorePool(max_concurrent=max_concurrent)
-    
+
     # Enhanced shuffle_do with optimized stepping
     def _enhanced_shuffle_do_optimized(self, method: str, *args, **kwargs):
         if method == "step" and self:
             agent = next(iter(self))
-            if hasattr(agent, "model") and getattr(agent.model, "parallel_stepping", False):
+            if hasattr(agent, "model") and getattr(
+                agent.model, "parallel_stepping", False
+            ):
                 if mode == "asyncio":
                     # Use optimized async stepping with proper event loop management
                     try:
@@ -206,8 +210,12 @@ def enable_automatic_parallel_stepping(
                         # We're in an event loop, but shuffle_do is sync. To preserve
                         # Mesa semantics (step completes before returning), run the
                         # coroutine to completion in a dedicated thread.
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                            future = executor.submit(lambda: asyncio.run(step_agents_parallel(list(self))))
+                        with concurrent.futures.ThreadPoolExecutor(
+                            max_workers=1
+                        ) as executor:
+                            future = executor.submit(
+                                lambda: asyncio.run(step_agents_parallel(list(self)))
+                            )
                             future.result(timeout=request_timeout)
                     except RuntimeError:
                         # No event loop - create one and run
@@ -221,14 +229,12 @@ def enable_automatic_parallel_stepping(
                     step_agents_multithreaded(list(self))
                     return
         _original_shuffle_do(self, method, *args, **kwargs)
-    
+
     AgentSet.shuffle_do = _enhanced_shuffle_do_optimized
 
 
 def enable_automatic_parallel_stepping_optimized(
-    mode: str = "asyncio",
-    max_concurrent: int = 10,
-    request_timeout: float = 30.0
+    mode: str = "asyncio", max_concurrent: int = 10, request_timeout: float = 30.0
 ) -> None:
     """
     Legacy function - use enable_automatic_parallel_stepping instead.

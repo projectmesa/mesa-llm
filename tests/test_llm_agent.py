@@ -2,9 +2,7 @@
 
 import json
 import re
-import asyncio
-import time
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 import pytest
 from mesa.discrete_space import OrthogonalMooreGrid
@@ -17,21 +15,22 @@ from mesa_llm.memory.st_memory import ShortTermMemory
 from mesa_llm.reasoning.react import ReActReasoning
 from mesa_llm.reasoning.reasoning import Reasoning
 
-
 # === Test Helper Functions ===
+
 
 class MockReasoning(Reasoning):
     """Mock reasoning class for testing without API calls."""
-    
+
     def plan(self, prompt, obs, selected_tools=None):
         return Plan(step=1, llm_plan="Mock plan response")
-    
+
     async def aplan(self, prompt, obs, selected_tools=None):
         return Plan(step=1, llm_plan="Mock async plan response")
 
 
 def create_dummy_model(seed=42, grid_type="MultiGrid", **grid_kwargs):
     """Create a standardized dummy model for testing."""
+
     class DummyModel(Model):
         def __init__(self, seed=seed):
             super().__init__(seed=seed)
@@ -40,16 +39,25 @@ def create_dummy_model(seed=42, grid_type="MultiGrid", **grid_kwargs):
             elif grid_type == "SingleGrid":
                 self.grid = SingleGrid(**grid_kwargs)
             elif grid_type == "OrthogonalMooreGrid":
-                self.grid = OrthogonalMooreGrid(dimensions=grid_kwargs["dimensions"], random=self.random)
+                self.grid = OrthogonalMooreGrid(
+                    dimensions=grid_kwargs["dimensions"], random=self.random
+                )
             elif grid_type == "ContinuousSpace":
                 self.space = ContinuousSpace(**grid_kwargs)
             # No grid/space if grid_type is None
-    
+
     return DummyModel(seed)
 
 
-def create_test_agent(model, pos=None, reasoning=ReActReasoning, system_prompt="You are an agent in a simulation.", 
-                     vision=-1, internal_state=["test_state"], memory_config=None):
+def create_test_agent(
+    model,
+    pos=None,
+    reasoning=ReActReasoning,
+    system_prompt="You are an agent in a simulation.",
+    vision=-1,
+    internal_state=["test_state"],
+    memory_config=None,
+):
     """Create a standardized test agent."""
     agents = LLMAgent.create_agents(
         model,
@@ -60,30 +68,44 @@ def create_test_agent(model, pos=None, reasoning=ReActReasoning, system_prompt="
         internal_state=internal_state,
     )
     agent = agents.to_list()[0]
-    
+
     # Set up memory
     memory_config = memory_config or {"n": 5, "display": True}
     agent.memory = ShortTermMemory(agent=agent, **memory_config)
-    
+
     # Place agent if position provided and grid exists
-    if pos and hasattr(model, 'grid'):
+    if pos and hasattr(model, "grid"):
         model.grid.place_agent(agent, pos)
-    
+
     return agent
 
 
 def create_two_agent_model(seed=45):
     """Create a model with two agents for message testing."""
-    model = create_dummy_model(seed=seed, grid_type="MultiGrid", width=3, height=3, torus=False)
-    
-    sender = create_test_agent(model, pos=(0, 0), reasoning=lambda agent: None, 
-                              system_prompt="Test", vision=-1, internal_state=[])
+    model = create_dummy_model(
+        seed=seed, grid_type="MultiGrid", width=3, height=3, torus=False
+    )
+
+    sender = create_test_agent(
+        model,
+        pos=(0, 0),
+        reasoning=lambda agent: None,
+        system_prompt="Test",
+        vision=-1,
+        internal_state=[],
+    )
     sender.unique_id = 10
-    
-    recipient = create_test_agent(model, pos=(1, 1), reasoning=lambda agent: None, 
-                                 system_prompt="Test", vision=-1, internal_state=[])
+
+    recipient = create_test_agent(
+        model,
+        pos=(1, 1),
+        reasoning=lambda agent: None,
+        system_prompt="Test",
+        vision=-1,
+        internal_state=[],
+    )
     recipient.unique_id = 20
-    
+
     return sender, recipient
 
 
@@ -95,7 +117,9 @@ class MockCell:
 
 
 def test_apply_plan_adds_to_memory(monkeypatch):
-    model = create_dummy_model(seed=42, grid_type="MultiGrid", width=3, height=3, torus=False)
+    model = create_dummy_model(
+        seed=42, grid_type="MultiGrid", width=3, height=3, torus=False
+    )
     agent = create_test_agent(model, pos=(1, 1))
 
     # fake response returned by the tool manager
@@ -122,7 +146,9 @@ def test_apply_plan_adds_to_memory(monkeypatch):
 
 
 def test_generate_obs_with_one_neighbor(monkeypatch):
-    model = create_dummy_model(seed=45, grid_type="MultiGrid", width=3, height=3, torus=False)
+    model = create_dummy_model(
+        seed=45, grid_type="MultiGrid", width=3, height=3, torus=False
+    )
 
     agent = create_test_agent(model, pos=(1, 1))
     agent.unique_id = 1
@@ -170,7 +196,9 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_aapply_plan_adds_to_memory(monkeypatch):
-    model = create_dummy_model(seed=42, grid_type="MultiGrid", width=3, height=3, torus=False)
+    model = create_dummy_model(
+        seed=42, grid_type="MultiGrid", width=3, height=3, torus=False
+    )
     agent = create_test_agent(model, pos=(1, 1))
 
     # optional: you can replace with async memory stub
@@ -196,7 +224,9 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agenerate_obs_with_one_neighbor(monkeypatch):
-    model = create_dummy_model(seed=45, grid_type="MultiGrid", width=3, height=3, torus=False)
+    model = create_dummy_model(
+        seed=45, grid_type="MultiGrid", width=3, height=3, torus=False
+    )
 
     agent = create_test_agent(model, pos=(1, 1))
     neighbor = create_test_agent(model, pos=(1, 2))
@@ -229,7 +259,9 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
             self.user_called = True
             return "done"
 
-    model = create_dummy_model(seed=1, grid_type="MultiGrid", width=3, height=3, torus=False)
+    model = create_dummy_model(
+        seed=1, grid_type="MultiGrid", width=3, height=3, torus=False
+    )
 
     agent = CustomAgent.create_agents(
         model,
@@ -260,7 +292,9 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
 
 def _make_agent(model, vision=0, internal_state=None):
     """Helper: create one LLMAgent and attach fresh ShortTermMemory."""
-    return create_test_agent(model, vision=vision, internal_state=internal_state or ["test"])
+    return create_test_agent(
+        model, vision=vision, internal_state=internal_state or ["test"]
+    )
 
 
 def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
@@ -583,58 +617,61 @@ async def test_asend_message_stores_serializable_ids(monkeypatch):
 
 # === Performance Optimization Integration Tests ===
 
+
 @pytest.mark.asyncio
 async def test_llm_agent_with_optimizations():
     """Test that LLMAgent properly initializes with optimizations."""
     mock_response = "Mock LLM response"
-    
-    with patch('mesa_llm.module_llm.completion', return_value=mock_response), \
-         patch('mesa_llm.module_llm.acompletion', return_value=mock_response):
-        
-        model = create_dummy_model(seed=42, grid_type="MultiGrid", width=3, height=3, torus=False)
-        
+
+    with (
+        patch("mesa_llm.module_llm.completion", return_value=mock_response),
+        patch("mesa_llm.module_llm.acompletion", return_value=mock_response),
+    ):
+        model = create_dummy_model(
+            seed=42, grid_type="MultiGrid", width=3, height=3, torus=False
+        )
+
         agent = LLMAgent(
             model=model,
             reasoning=MockReasoning,
-            llm_model='test/gpt-4',
-            system_prompt="Test system prompt"
+            llm_model="test/gpt-4",
+            system_prompt="Test system prompt",
         )
-        
+
         # Verify optimizations are enabled
-        assert hasattr(agent, 'llm')
-        assert hasattr(agent.llm, 'enable_caching')
+        assert hasattr(agent, "llm")
+        assert hasattr(agent.llm, "enable_caching")
         assert agent.llm.enable_caching is True
-        assert hasattr(agent.llm, 'enable_batching')
+        assert hasattr(agent.llm, "enable_batching")
         assert agent.llm.enable_batching is True
-        assert hasattr(agent.llm, 'cache')
-        assert hasattr(agent.llm, 'batcher')
-        assert hasattr(agent.llm, 'connection_pool')
-        
+        assert hasattr(agent.llm, "cache")
+        assert hasattr(agent.llm, "batcher")
+        assert hasattr(agent.llm, "connection_pool")
+
         # Test performance stats
         stats = agent.llm.get_performance_stats()
-        assert 'request_count' in stats
-        assert 'cache_hits' in stats
-        assert 'cache_hit_rate' in stats
-        
+        assert "request_count" in stats
+        assert "cache_hits" in stats
+        assert "cache_hit_rate" in stats
+
         await agent.llm.cleanup()
+
 
 def test_backward_compatibility():
     """Test that optimizations don't break existing functionality."""
     # Test that agents still work without explicit optimization parameters
-    model = create_dummy_model(seed=42, grid_type="MultiGrid", width=3, height=3, torus=False)
-    
-    agent = LLMAgent(
-        model=model,
-        reasoning=MockReasoning,
-        llm_model='test/gpt-4'
+    model = create_dummy_model(
+        seed=42, grid_type="MultiGrid", width=3, height=3, torus=False
     )
-    
+
+    agent = LLMAgent(model=model, reasoning=MockReasoning, llm_model="test/gpt-4")
+
     # Should still work with default optimizations enabled
-    assert hasattr(agent, 'llm')
-    assert hasattr(agent, 'reasoning')
-    assert hasattr(agent, 'memory')
-    assert hasattr(agent, 'tool_manager')
-    
+    assert hasattr(agent, "llm")
+    assert hasattr(agent, "reasoning")
+    assert hasattr(agent, "memory")
+    assert hasattr(agent, "tool_manager")
+
     # Should have optimizations by default
     assert agent.llm.enable_caching is True
     assert agent.llm.enable_batching is True
