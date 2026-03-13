@@ -4,8 +4,9 @@ import asyncio
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from mesa.discrete_space import OrthogonalMooreGrid, OrthogonalVonNeumannGrid
+from mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
-from mesa.space import MultiGrid
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.reasoning.cot import CoTReasoning
@@ -46,7 +47,6 @@ class TestCoTReasoning:
             def __init__(self):
                 super().__init__(rng=45)
                 self.grid = MultiGrid(3, 3, torus=False)
-
         # Create an LLMAgent with CoTReasoning
         model = DummyModel()
         agent = LLMAgent(
@@ -58,8 +58,8 @@ class TestCoTReasoning:
         agent.memory = mock_memory
 
         # Remove the attribute so `hasattr(..., "_step_display_data")` returns False
-        if hasattr(agent.reasoning.agent, "_step_display_data"):
-            delattr(agent.reasoning.agent, "_step_display_data")
+        if hasattr(agent.reasoning_instance, "_step_display_data"):
+            delattr(agent.reasoning_instance, "_step_display_data")
 
         responses = iter(
             [
@@ -77,7 +77,7 @@ class TestCoTReasoning:
         # Create an observation (step 0 -> plan.step should be 1)
         obs = Observation(step=0, self_state={}, local_state={})
 
-        plan = agent.reasoning.plan(obs=obs)
+        plan = agent.reasoning_instance.plan(obs=obs)
 
         # Assertions
         assert isinstance(plan, Plan)

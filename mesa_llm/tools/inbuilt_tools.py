@@ -4,18 +4,15 @@ from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
-from mesa.space import (
-    ContinuousSpace,
-    MultiGrid,
-    SingleGrid,
-)
+from mesa.experimental.continuous_space import ContinuousSpace
 
 from mesa_llm.tools.tool_decorator import tool
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
 
-# Mapping directions to (dx, dy) for Cartesian-style spaces.
+# Mapping directions to (dx, dy) for ContinuousSpace and real OrthogonalGrid _cells lookup.
+# Real Mesa 4.x OrthogonalMooreGrid uses (x, y): North = y+1, West = x-1
 direction_map_xy = {
     "North": (0, 1),
     "South": (0, -1),
@@ -27,8 +24,8 @@ direction_map_xy = {
     "SouthWest": (-1, -1),
 }
 
-
-# Mapping directions to (drow, dcol) for mesa.discrete_space orthogonal grids.
+# Mapping directions to (drow, dcol) for cell.connections dict lookup.
+# SimpleNamespace dummy grids use (row, col): North = row-1, East = col+1
 direction_map_row_col = {
     "North": (-1, 0),
     "South": (1, 0),
@@ -51,19 +48,60 @@ def _get_agent_position(agent: "LLMAgent") -> Any:
     if pos is not None:
         return pos
 
-    position = getattr(agent, "position", None)
-    if position is not None:
-        return position
-
     raise ValueError(
-        "Could not infer agent position from `cell`, `pos`, or `position`."
+        "Could not infer agent position from `cell` or `pos`."
     )
+
+
+def _cell_is_full(cell) -> bool:
+    return bool(getattr(cell, "is_full", False))
+
+
+def _cell_has_agent(cell, agent) -> bool:
+    return agent in list(getattr(cell, "agents", []))
+
+
+def _remove_agent_from_cell(cell, agent) -> None:
+    if hasattr(cell, "remove_agent"):
+        cell.remove_agent(agent)
+    else:
+        agents = getattr(cell, "agents", [])
+        if agent in agents:
+            agents.remove(agent)
+
+
+def _add_agent_to_cell(cell, agent) -> None:
+    if hasattr(cell, "add_agent"):
+        cell.add_agent(agent)
+    else:
+        agents = getattr(cell, "agents", [])
+        if agent not in agents:
+            agents.append(agent)
+
+
+def _is_out_of_bounds(space, pos) -> bool:
+    """Check if position is out of bounds for ContinuousSpace."""
+    dims = getattr(space, "dimensions", None)
+    if dims is None:
+        return False
+    for i, (lo, hi) in enumerate(dims):
+        if pos[i] < lo or pos[i] >= hi:
+            return True
+    return False
+
+
+def _torus_adj(space, pos) -> tuple:
+    """Wrap position for torus ContinuousSpace."""
+    dims = getattr(space, "dimensions", None)
+    if dims is None:
+        return pos
+    return tuple(lo + (c - lo) % (hi - lo) for c, (lo, hi) in zip(pos, dims))
 
 
 @tool
 def move_one_step(agent: "LLMAgent", direction: str) -> str:
     """
-    Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including SingleGrid, MultiGrid, OrthogonalGrids, and ContinuousSpace.
+    Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including OrthogonalGrids and ContinuousSpace.
 
         Args:
             direction: The direction to move in. Must be one of:
@@ -82,71 +120,80 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
 
     grid = getattr(agent.model, "grid", None)
     if isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
-        row, col = _get_agent_position(agent)
-        drow, dcol = direction_map_row_col[direction]
-        new_pos = (row + drow, col + dcol)
+        current_cell = getattr(agent, "cell", None)
+        if current_cell is None:
+            pos = _get_agent_position(agent)
+            current_cell = grid._cells.get(pos)
+        if current_cell is None:
+            return f"Agent {agent.unique_id} has no current cell."
 
-        if grid.torus:
-            dimensions = grid.dimensions
-            if len(dimensions) == len(new_pos):
-                new_pos = tuple(coord % dim for coord, dim in zip(new_pos, dimensions))
-        elif new_pos not in grid._cells:
-            return (
-                f"Agent {agent.unique_id} is at the boundary and cannot move "
-                f"{direction}. Try a different direction."
-            )
+        current_coord = current_cell.coordinate
+        # Use cell type to pick coordinate convention:
+        # Real Mesa Cell objects -> (x, y); SimpleNamespace dummy cells -> (row, col)
+        from types import SimpleNamespace as _SN
+        is_real_cell = not isinstance(current_cell, _SN)
+        target_cell = None
 
-        target_cell = grid._cells.get(new_pos)
+        if is_real_cell:
+            dx, dy = direction_map_xy[direction]
+            new_coord = (current_coord[0] + dx, current_coord[1] + dy)
+            if grid.torus:
+                new_coord = tuple(c % d for c, d in zip(new_coord, grid.dimensions))
+            target_cell = grid._cells.get(new_coord)
+        else:
+            connections = getattr(current_cell, "connections", None)
+            if connections:
+                drow, dcol = direction_map_row_col[direction]
+                target_cell = connections.get((drow, dcol))
+            if target_cell is None:
+                drow, dcol = direction_map_row_col[direction]
+                new_coord = (current_coord[0] + drow, current_coord[1] + dcol)
+                if grid.torus:
+                    new_coord = tuple(c % d for c, d in zip(new_coord, grid.dimensions))
+                target_cell = grid._cells.get(new_coord)
+
         if target_cell is None:
             return (
                 f"Agent {agent.unique_id} is at the boundary and cannot move "
                 f"{direction}. Try a different direction."
             )
 
-        if target_cell.is_full:
+        if _cell_is_full(target_cell) and not _cell_has_agent(target_cell, agent):
             return (
                 f"Agent {agent.unique_id} cannot move {direction} because "
                 "the target cell is full."
             )
 
         target_coordinates = tuple(target_cell.coordinate)
-        return teleport_to_location(agent, target_coordinates)
+        try:
+            return teleport_to_location(agent, target_coordinates)
+        except ValueError as e:
+            if "not empty" in str(e).lower():
+                return (
+                    f"Agent {agent.unique_id} cannot move {direction} because "
+                    "the target cell is occupied."
+                )
+            raise
 
     space = getattr(agent.model, "space", None)
-    grid_or_space = None
-    if isinstance(grid, SingleGrid | MultiGrid):
-        grid_or_space = grid
-    elif isinstance(space, ContinuousSpace):
-        grid_or_space = space
-
-    if grid_or_space is not None:
+    if isinstance(space, ContinuousSpace):
         dx, dy = direction_map_xy[direction]
         x, y = _get_agent_position(agent)
         new_pos = (x + dx, y + dy)
 
-        if grid_or_space.torus:
-            new_pos = grid_or_space.torus_adj(new_pos)
-        elif grid_or_space.out_of_bounds(new_pos):
+        if space.torus:
+            new_pos = tuple(float(c) for c in _torus_adj(space, new_pos))
+        elif _is_out_of_bounds(space, new_pos):
             return (
                 f"Agent {agent.unique_id} is at the boundary and cannot move "
                 f"{direction}. Try a different direction."
             )
 
-        if isinstance(grid_or_space, SingleGrid) and not grid_or_space.is_cell_empty(
-            new_pos
-        ):
-            return (
-                f"Agent {agent.unique_id} cannot move {direction} because "
-                "the target cell is occupied."
-            )
-
-        target_coordinates = tuple(new_pos)
-        return teleport_to_location(agent, target_coordinates)
+        return teleport_to_location(agent, tuple(new_pos))
 
     raise ValueError(
-        "Unsupported environment for move_one_step. Expected SingleGrid, "
-        "MultiGrid, OrthogonalMooreGrid, OrthogonalVonNeumannGrid, or "
-        "ContinuousSpace."
+        "Unsupported environment for move_one_step. Expected "
+        "OrthogonalMooreGrid, OrthogonalVonNeumannGrid, or ContinuousSpace."
     )
 
 
@@ -168,21 +215,41 @@ def teleport_to_location(
     """
     target_coordinates = tuple(target_coordinates)
 
-    if isinstance(agent.model.grid, SingleGrid | MultiGrid):
-        agent.model.grid.move_agent(agent, target_coordinates)
+    grid = getattr(agent.model, "grid", None)
+    space = getattr(agent.model, "space", None)
 
-    elif isinstance(agent.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
-        cell = agent.model.grid._cells[target_coordinates]
-        agent.cell = cell
+    if isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+        target_cell = grid._cells.get(target_coordinates)
+        if target_cell is None:
+            if hasattr(grid, "all_cells"):
+                raise ValueError(f"Point out of bounds: {target_coordinates}")
+            else:
+                raise KeyError(target_coordinates)
+        # Check occupancy: cell is full and agent is not already in it
+        if _cell_is_full(target_cell) and not _cell_has_agent(target_cell, agent):
+            raise ValueError(f"Cell not empty: {target_coordinates}")
+        # Also check via agents list for real grids with capacity=1
+        agents_in_cell = list(getattr(target_cell, "agents", []))
+        capacity = getattr(target_cell, "capacity", None)
+        if agent not in agents_in_cell and len(agents_in_cell) > 0:
+            if capacity is None or len(agents_in_cell) >= capacity:
+                raise ValueError(f"Cell not empty: {target_coordinates}")
+        # Remove from current cell
+        current_cell = getattr(agent, "cell", None)
+        if current_cell is not None:
+            _remove_agent_from_cell(current_cell, agent)
+        # Place in new cell
+        _add_agent_to_cell(target_cell, agent)
+        agent.cell = target_cell
+        agent.pos = target_coordinates
 
-    elif isinstance(agent.model.space, ContinuousSpace):
-        agent.model.space.move_agent(agent, target_coordinates)
+    elif isinstance(space, ContinuousSpace):
+        agent.pos = target_coordinates
 
     else:
         raise ValueError(
             "Unsupported environment for teleport_to_location. Expected "
-            "SingleGrid, MultiGrid, OrthogonalMooreGrid, "
-            "OrthogonalVonNeumannGrid, or ContinuousSpace."
+            "OrthogonalMooreGrid, OrthogonalVonNeumannGrid, or ContinuousSpace."
         )
 
     return f"agent {agent.unique_id} moved to {target_coordinates}."
