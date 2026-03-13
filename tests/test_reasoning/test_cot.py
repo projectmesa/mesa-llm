@@ -4,8 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from mesa.discrete_space import OrthogonalMooreGrid, OrthogonalVonNeumannGrid
-from mesa.experimental.continuous_space import ContinuousSpace
+from mesa.discrete_space import OrthogonalMooreGrid
 from mesa.model import Model
 
 from mesa_llm.llm_agent import LLMAgent
