@@ -120,7 +120,11 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=int(getattr(self.agent.model, "_time", 0)), llm_plan=response_message, ttl=ttl)
+        plan = Plan(
+            step=int(getattr(self.agent.model, "_time", 0)),
+            llm_plan=response_message,
+            ttl=ttl,
+        )
 
         return plan
 
@@ -143,6 +147,10 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=int(getattr(self.agent.model, "_time", 0)), llm_plan=response_message, ttl=ttl)
+        plan = Plan(
+            step=int(getattr(self.agent.model, "_time", 0)),
+            llm_plan=response_message,
+            ttl=ttl,
+        )
 
         return plan
