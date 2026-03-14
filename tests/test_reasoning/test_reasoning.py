@@ -46,7 +46,7 @@ class TestReasoningBase:
     def test_execute_tool_call_generates_plan(self, llm_response_factory, mock_agent):
         """Test that the base execute_tool_call method produces a Plan."""
         # 1. Setup a mock agent with all necessary components
-        mock_agent.model.steps = 5
+        mock_agent.model._time = 5
 
         mock_llm_response = llm_response_factory(content="Final LLM message")
         mock_agent.llm.generate.return_value = mock_llm_response
@@ -89,7 +89,7 @@ class TestReasoningBase:
     def test_execute_tool_call_propagates_ttl(self):
         """Test that execute_tool_call propagates caller-provided TTL."""
         mock_agent = Mock()
-        mock_agent.model.steps = 5
+        mock_agent.model._time = 5
         mock_llm_response = Mock()
         mock_llm_response.choices = [Mock()]
         mock_llm_response.choices[0].message = "Final LLM message"
