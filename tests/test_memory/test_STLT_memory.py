@@ -147,9 +147,9 @@ class TestSTLTMemory:
 
         memory._update_long_term_memory()
 
-        assert isinstance(
-            memory.long_term_memory, str
-        ), "long_term_memory must be a string, not a ModelResponse object"
+        assert isinstance(memory.long_term_memory, str), (
+            "long_term_memory must be a string, not a ModelResponse object"
+        )
         assert memory.long_term_memory == "This is the summary text"
 
     def test_observation_tracking(self, mock_agent):
@@ -181,9 +181,9 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(
-            result, str
-        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
+        assert isinstance(result, str), (
+            f"get_prompt_ready() must return str, got {type(result).__name__}"
+        )
         assert "Short term memory:" in result
         assert "Long term memory:" in result
         assert "Test obs" in result
@@ -195,9 +195,9 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(
-            result, str
-        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
+        assert isinstance(result, str), (
+            f"get_prompt_ready() must return str, got {type(result).__name__}"
+        )
         assert "Short term memory:" in result
         assert "Long term memory:" in result
 
@@ -233,6 +233,51 @@ class TestSTLTMemory:
         call_args = mock_llm.generate.call_args[0][0]
 
         # The oldest entry MUST be in the prompt sent to the LLM
-        assert (
-            "critical event at step 0" in call_args
-        ), "Oldest memory entry was silently dropped before consolidation!"
+        assert "critical event at step 0" in call_args, (
+            "Oldest memory entry was silently dropped before consolidation!"
+        )
+
+    def test_memory_pops_and_summarizes_exact_k_items(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """
+        Verify that exactly consolidation_capacity items are popped when capacity is exceeded
+        and ONLY those popped items are sent to the LLM for summarization. Issue #107.
+        """
+        mock_llm.generate.return_value = llm_response_factory(
+            "Consolidated memory summary"
+        )
+
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=2,
+            consolidation_capacity=2,
+            llm_model="provider/test_model",
+        )
+        memory.llm = mock_llm
+
+        # We will add 5 items. The first 4 fill the capacity + consolidation_capacity (2 + 2 = 4).
+        # When the 5th item is added, consolidation should trigger.
+        with patch("rich.console.Console"):
+            for i in range(5):
+                memory.step_content = {"observation": f"event at step {i}"}
+                memory.process_step(pre_step=True)
+                mock_agent.model.steps = i + 1
+                memory.step_content = {"action": f"response to step {i}"}
+                memory.process_step()
+
+        # At the 5th item (i=4), consolidation is triggered.
+        # So exactly 'consolidation_capacity' (2) items are popped (items i=0 and i=1)
+        # And the remaining queue should have capacity (2) + 1 (new entry) = 3 items (i=2, i=3, i=4)
+        assert len(memory.short_term_memory) == 3
+
+        call_args = mock_llm.generate.call_args[0][0]
+
+        # The prompt should contain only the popped items (0 and 1)
+        assert "event at step 0" in call_args
+        assert "event at step 1" in call_args
+
+        # The prompt MUST NOT contain items that were NOT popped (2, 3, 4)
+        assert "event at step 2" not in call_args
+        assert "event at step 3" not in call_args
+        assert "event at step 4" not in call_args
