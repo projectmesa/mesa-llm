@@ -1,7 +1,8 @@
 import os
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import BaseModel
 
 from mesa_llm.module_llm import ModuleLLM
 
@@ -81,6 +82,36 @@ class TestModuleLLM:
         llm = ModuleLLM(llm_model="openai/gpt-4o")
         messages = llm._build_messages(prompt=None)
         assert messages == [{"role": "system", "content": ""}]
+
+        messages = llm._build_messages(
+            "Hello, how are you?", system_prompt="Per-call prompt"
+        )
+        assert messages == [
+            {"role": "system", "content": "Per-call prompt"},
+            {"role": "user", "content": "Hello, how are you?"},
+        ]
+
+    def test_parse_structured_output(self):
+        class DummyOutput(BaseModel):
+            answer: str
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+
+        response = Mock()
+        response.choices = [Mock()]
+        response.choices[0].message = Mock()
+        response.choices[0].message.parsed = DummyOutput(answer="parsed")
+        parsed = llm.parse_structured_output(response, DummyOutput)
+        assert parsed.answer == "parsed"
+
+        response.choices[0].message.parsed = {"answer": "dict"}
+        parsed = llm.parse_structured_output(response, DummyOutput)
+        assert parsed.answer == "dict"
+
+        response.choices[0].message.parsed = None
+        response.choices[0].message.content = '{"answer":"json"}'
+        parsed = llm.parse_structured_output(response, DummyOutput)
+        assert parsed.answer == "json"
 
     def test_generate(self, monkeypatch, llm_response_factory):
         monkeypatch.setattr(

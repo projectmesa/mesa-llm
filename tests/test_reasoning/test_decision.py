@@ -25,6 +25,15 @@ class TestDecisionModels:
         assert option.tradeoffs == ["Consumes one turn", "May expose the agent"]
         assert option.score == 0.82
 
+    def test_decision_option_score_constraints(self):
+        with pytest.raises(ValueError):
+            DecisionOption(
+                name="invalid_option",
+                description="Invalid score",
+                tradeoffs=["Not allowed"],
+                score=1.5,
+            )
+
     def test_decision_output_creation(self):
         output = DecisionOutput(
             goal="Reach a safer location",
@@ -87,6 +96,27 @@ class TestDecisionReasoning:
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
+        parsed_output = DecisionOutput(
+            goal="Reach food",
+            constraints=["One movement per turn"],
+            known_facts=["Food is visible nearby"],
+            unknowns=["Whether the route stays open"],
+            assumptions=["The route remains open this step"],
+            options=[
+                DecisionOption(
+                    name="move_to_food",
+                    description="Move toward visible food",
+                    tradeoffs=["Fast", "May be contested"],
+                    score=0.88,
+                )
+            ],
+            chosen_option="move_to_food",
+            rationale="It best advances the immediate goal.",
+            confidence=0.78,
+            risks=["Another agent may reach it first"],
+            next_action="move_to_food",
+        )
+        mock_agent.llm.parse_structured_output.return_value = parsed_output
         mock_agent.tool_manager = Mock()
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
         mock_agent._step_display_data = {}
@@ -125,6 +155,14 @@ class TestDecisionReasoning:
 
         assert result == mock_plan
         mock_agent.memory.add_to_memory.assert_called_once()
+        mock_agent.llm.generate.assert_called_once()
+        assert (
+            mock_agent.llm.generate.call_args.kwargs["system_prompt"]
+            == reasoning.get_decision_system_prompt()
+        )
+        mock_agent.llm.parse_structured_output.assert_called_once_with(
+            mock_agent.llm.generate.return_value, DecisionOutput
+        )
         reasoning.execute_tool_call.assert_called_once_with(
             "move_to_food",
             selected_tools=None,
@@ -141,6 +179,26 @@ class TestDecisionReasoning:
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
+        mock_agent.llm.parse_structured_output.return_value = DecisionOutput(
+            goal="Hold position",
+            constraints=["No safe exit visible"],
+            known_facts=["A threat is adjacent"],
+            unknowns=["Threat intent"],
+            assumptions=["Staying still is safer than moving blindly"],
+            options=[
+                DecisionOption(
+                    name="wait",
+                    description="Hold current position",
+                    tradeoffs=["No progress", "Reduces exposure"],
+                    score=0.61,
+                )
+            ],
+            chosen_option="wait",
+            rationale="It minimizes immediate danger.",
+            confidence=0.53,
+            risks=["Threat may approach anyway"],
+            next_action="wait",
+        )
         mock_agent.tool_manager = Mock()
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
         mock_agent._step_display_data = {}
@@ -196,7 +254,7 @@ class TestDecisionReasoning:
 
         assert prompt_list == ["current observation: \n" + str(obs)]
 
-    def test_plan_uses_structured_response_when_available(
+    def test_plan_uses_structured_response_normalizer(
         self, llm_response_factory, mock_agent
     ):
         mock_agent.memory = Mock()
@@ -204,10 +262,6 @@ class TestDecisionReasoning:
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
-        mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
-        mock_agent._step_display_data = {}
-
         parsed_output = DecisionOutput(
             goal="Reach food",
             constraints=["One movement per turn"],
@@ -228,9 +282,11 @@ class TestDecisionReasoning:
             risks=["Another agent may reach it first"],
             next_action="move_to_food",
         )
-        rsp = llm_response_factory(content="ignored")
-        rsp.choices[0].message.parsed = parsed_output
-        mock_agent.llm.generate.return_value = rsp
+        mock_agent.llm.parse_structured_output.return_value = parsed_output
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent._step_display_data = {}
+        mock_agent.llm.generate.return_value = llm_response_factory(content="ignored")
 
         mock_plan = Plan(step=1, llm_plan=Mock())
         reasoning = DecisionReasoning(mock_agent)
@@ -242,6 +298,9 @@ class TestDecisionReasoning:
         assert result == mock_plan
         mock_agent.memory.add_to_memory.assert_called_once_with(
             type="decision", content=parsed_output.model_dump()
+        )
+        mock_agent.llm.parse_structured_output.assert_called_once_with(
+            mock_agent.llm.generate.return_value, DecisionOutput
         )
 
     def test_plan_no_prompt_error(self, mock_agent):
@@ -265,6 +324,26 @@ class TestDecisionReasoning:
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.aadd_to_memory = AsyncMock()
         mock_agent.llm = Mock()
+        mock_agent.llm.parse_structured_output.return_value = DecisionOutput(
+            goal="Move closer to ally",
+            constraints=["One step per turn"],
+            known_facts=["An ally is east of the agent"],
+            unknowns=["Whether the east cell is contested"],
+            assumptions=["The ally remains in place this step"],
+            options=[
+                DecisionOption(
+                    name="move_east",
+                    description="Move one cell east",
+                    tradeoffs=["Improves coordination", "May increase exposure"],
+                    score=0.74,
+                )
+            ],
+            chosen_option="move_east",
+            rationale="It improves coordination with acceptable risk.",
+            confidence=0.69,
+            risks=["The east cell may be occupied"],
+            next_action="move_east",
+        )
         mock_agent.tool_manager = Mock()
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
         mock_agent._step_display_data = {}
@@ -305,6 +384,13 @@ class TestDecisionReasoning:
 
         assert result == mock_plan
         mock_agent.llm.agenerate.assert_called_once()
+        assert (
+            mock_agent.llm.agenerate.call_args.kwargs["system_prompt"]
+            == reasoning.get_decision_system_prompt()
+        )
+        mock_agent.llm.parse_structured_output.assert_called_once_with(
+            mock_agent.llm.agenerate.return_value, DecisionOutput
+        )
         reasoning.aexecute_tool_call.assert_awaited_once_with(
             "move_east",
             selected_tools=None,

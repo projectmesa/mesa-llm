@@ -8,6 +8,7 @@ from litellm.exceptions import (
     RateLimitError,
     Timeout,
 )
+from pydantic import BaseModel
 from tenacity import AsyncRetrying, retry, retry_if_exception_type, wait_exponential
 
 RETRYABLE_EXCEPTIONS = (
@@ -79,7 +80,11 @@ class ModuleLLM:
                 self.llm_model,
             )
 
-    def _build_messages(self, prompt: str | list[str] | None = None) -> list[dict]:
+    def _build_messages(
+        self,
+        prompt: str | list[str] | None = None,
+        system_prompt: str | None = None,
+    ) -> list[dict]:
         """
         Format the prompt messages for the LLM of the form : {"role": ..., "content": ...}
 
@@ -92,7 +97,8 @@ class ModuleLLM:
         messages = []
 
         # Always include a system message. Default to empty string if no system prompt to support Ollama
-        system_content = self.system_prompt if self.system_prompt else ""
+        system_content = system_prompt if system_prompt is not None else self.system_prompt
+        system_content = system_content if system_content else ""
         messages.append({"role": "system", "content": system_content})
 
         if prompt:
@@ -103,6 +109,23 @@ class ModuleLLM:
                 messages.extend([{"role": "user", "content": p} for p in prompt])
 
         return messages
+
+    def parse_structured_output(
+        self,
+        response,
+        response_model: type[BaseModel],
+    ) -> BaseModel:
+        """Normalize structured LLM output into the requested pydantic model."""
+        message = response.choices[0].message
+        parsed = getattr(message, "parsed", None)
+
+        if isinstance(parsed, response_model):
+            return parsed
+
+        if parsed is not None:
+            return response_model.model_validate(parsed)
+
+        return response_model.model_validate_json(message.content)
 
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=60),
@@ -115,6 +138,7 @@ class ModuleLLM:
         tool_schema: list[dict] | None = None,
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
+        system_prompt: str | None = None,
     ) -> str:
         """
         Generate a response from the LLM using litellm based on the prompt
@@ -129,7 +153,7 @@ class ModuleLLM:
             The response from the LLM
         """
 
-        messages = self._build_messages(prompt)
+        messages = self._build_messages(prompt, system_prompt=system_prompt)
 
         completion_kwargs = {
             "model": self.llm_model,
@@ -151,11 +175,12 @@ class ModuleLLM:
         tool_schema: list[dict] | None = None,
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
+        system_prompt: str | None = None,
     ) -> str:
         """
         Asynchronous version of generate() method for parallel LLM calls.
         """
-        messages = self._build_messages(prompt)
+        messages = self._build_messages(prompt, system_prompt=system_prompt)
         async for attempt in AsyncRetrying(
             wait=wait_exponential(multiplier=1, min=1, max=60),
             retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),

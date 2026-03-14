@@ -13,6 +13,8 @@ class DecisionOption(BaseModel):
     description: str
     tradeoffs: list[str]
     score: float = Field(
+        ge=0.0,
+        le=1.0,
         description="Relative evaluation score for this option in the current context."
     )
 
@@ -87,19 +89,6 @@ class DecisionReasoning(Reasoning):
 
         return prompt_list
 
-    def _parse_decision_output(self, response) -> dict:
-        """Normalize structured LLM output into a dictionary."""
-        message = response.choices[0].message
-        parsed = getattr(message, "parsed", None)
-
-        if isinstance(parsed, DecisionOutput):
-            return parsed.model_dump()
-
-        if isinstance(parsed, dict):
-            return DecisionOutput.model_validate(parsed).model_dump()
-
-        return DecisionOutput.model_validate_json(message.content).model_dump()
-
     def plan(
         self,
         prompt: str | None = None,
@@ -113,7 +102,6 @@ class DecisionReasoning(Reasoning):
         if obs is None:
             obs = self.agent.generate_obs()
 
-        self.agent.llm.system_prompt = self.get_decision_system_prompt()
         prompt_list = self.get_decision_prompt(obs)
 
         if prompt is not None:
@@ -132,9 +120,12 @@ class DecisionReasoning(Reasoning):
             tool_schema=selected_tools_schema,
             tool_choice="none",
             response_format=DecisionOutput,
+            system_prompt=self.get_decision_system_prompt(),
         )
 
-        formatted_response = self._parse_decision_output(rsp)
+        formatted_response = self.agent.llm.parse_structured_output(
+            rsp, DecisionOutput
+        ).model_dump()
         self.agent.memory.add_to_memory(type="decision", content=formatted_response)
 
         if hasattr(self.agent, "_step_display_data"):
@@ -161,7 +152,6 @@ class DecisionReasoning(Reasoning):
         if obs is None:
             obs = await self.agent.agenerate_obs()
 
-        self.agent.llm.system_prompt = self.get_decision_system_prompt()
         prompt_list = self.get_decision_prompt(obs)
 
         if prompt is not None:
@@ -180,9 +170,12 @@ class DecisionReasoning(Reasoning):
             tool_schema=selected_tools_schema,
             tool_choice="none",
             response_format=DecisionOutput,
+            system_prompt=self.get_decision_system_prompt(),
         )
 
-        formatted_response = self._parse_decision_output(rsp)
+        formatted_response = self.agent.llm.parse_structured_output(
+            rsp, DecisionOutput
+        ).model_dump()
         await self.agent.memory.aadd_to_memory(
             type="decision", content=formatted_response
         )
