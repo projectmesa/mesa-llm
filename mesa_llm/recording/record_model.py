@@ -82,16 +82,21 @@ def record_model(
         self.recorder = SimulationRecorder(model=self, **recorder_kwargs)  # type: ignore[attr-defined]
         _attach_recorder_to_agents(self, self.recorder)
 
-        # Use a closure to capture a reference to `self`
-        def _auto_save():
-            try:
-                # Avoid creating multiple identical files if already saved manually
-                if hasattr(self, "recorder") and self.recorder.events:
-                    self.save_recording()
-            except Exception:  # pragma: no cover - defensive
-                logger.exception("SimulationRecorder auto-save failed")
+        # Guard: register at most one atexit handler per model instance.
+        # Without this guard, every instantiation of a decorated model class
+        # would accumulate a redundant handler (see GitHub issue #202).
+        if not getattr(self, "_atexit_registered", False):
 
-        atexit.register(_auto_save)
+            def _auto_save():
+                try:
+                    # Avoid creating multiple identical files if already saved manually
+                    if hasattr(self, "recorder") and self.recorder.events:
+                        self.save_recording()
+                except Exception:  # pragma: no cover - defensive
+                    logger.exception("SimulationRecorder auto-save failed")
+
+            atexit.register(_auto_save)
+            self._atexit_registered = True  # type: ignore[attr-defined]
 
     cls.__init__ = init_wrapper  # type: ignore[assignment]
 

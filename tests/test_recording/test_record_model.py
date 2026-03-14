@@ -263,3 +263,65 @@ class TestRecordModelDecorator:
         assert model1.recorder != model2.recorder
         assert model1.recorder.output_dir == temp_dir / "model1"
         assert model2.recorder.output_dir == temp_dir / "model2"
+
+    @patch("mesa_llm.recording.record_model.atexit.register")
+    def test_multiple_instances_each_get_one_atexit_handler(
+        self, mock_atexit, temp_dir
+    ):
+        """Test that creating N model instances registers exactly N atexit
+        handlers — one per instance, not N for the first instance alone.
+
+        Regression test for GitHub issue #202.
+        """
+
+        @record_model(output_dir=str(temp_dir))
+        class SimpleModel(Model):
+            def __init__(self):
+                super().__init__()
+                self.steps = 0
+
+        SimpleModel()
+        SimpleModel()
+        SimpleModel()
+
+        # Exactly 3 handlers — one per distinct model instance
+        assert mock_atexit.call_count == 3
+
+    @patch("mesa_llm.recording.record_model.atexit.register")
+    def test_atexit_not_reregistered_on_reinit(self, mock_atexit, temp_dir):
+        """Test that calling __init__ again on the same instance does not
+        register another atexit handler.
+
+        Regression test for GitHub issue #202.
+        """
+
+        @record_model(output_dir=str(temp_dir))
+        class SimpleModel(Model):
+            def __init__(self):
+                super().__init__()
+                self.steps = 0
+
+        model = SimpleModel()
+        assert mock_atexit.call_count == 1
+
+        # Re-initialize the same instance — should NOT add another handler
+        model.__init__()
+        assert mock_atexit.call_count == 1
+
+    def test_atexit_registered_flag_set_on_instance(self, temp_dir):
+        """Test that the _atexit_registered flag is set on each model instance
+        after initialization.
+
+        Regression test for GitHub issue #202.
+        """
+
+        @record_model(output_dir=str(temp_dir))
+        class SimpleModel(Model):
+            def __init__(self):
+                super().__init__()
+                self.steps = 0
+
+        model = SimpleModel()
+
+        assert hasattr(model, "_atexit_registered")
+        assert model._atexit_registered is True
