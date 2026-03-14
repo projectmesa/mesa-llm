@@ -75,7 +75,7 @@ class STLTMemory(Memory):
             You are a helpful assistant that compresses excessively long text memories.
             The following text represents an agent's long-term memory. It has grown too large.
             Please compress it, retaining only the most critical overarching facts and lessons, and discarding less salient or outdated details.
-            
+
             Current Long-term memory to prune:
             {long_term_memory}
             """

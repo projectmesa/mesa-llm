@@ -147,9 +147,9 @@ class TestSTLTMemory:
 
         memory._update_long_term_memory()
 
-        assert isinstance(
-            memory.long_term_memory, str
-        ), "long_term_memory must be a string, not a ModelResponse object"
+        assert isinstance(memory.long_term_memory, str), (
+            "long_term_memory must be a string, not a ModelResponse object"
+        )
         assert memory.long_term_memory == "This is the summary text"
 
     def test_observation_tracking(self, mock_agent):
@@ -181,9 +181,9 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(
-            result, str
-        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
+        assert isinstance(result, str), (
+            f"get_prompt_ready() must return str, got {type(result).__name__}"
+        )
         assert "Short term memory:" in result
         assert "Long term memory:" in result
         assert "Test obs" in result
@@ -195,9 +195,9 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(
-            result, str
-        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
+        assert isinstance(result, str), (
+            f"get_prompt_ready() must return str, got {type(result).__name__}"
+        )
         assert "Short term memory:" in result
         assert "Long term memory:" in result
 
@@ -233,9 +233,9 @@ class TestSTLTMemory:
         call_args = mock_llm.generate.call_args[0][0]
 
         # The oldest entry MUST be in the prompt sent to the LLM
-        assert (
-            "critical event at step 0" in call_args
-        ), "Oldest memory entry was silently dropped before consolidation!"
+        assert "critical event at step 0" in call_args, (
+            "Oldest memory entry was silently dropped before consolidation!"
+        )
 
     def test_memory_pops_and_summarizes_exact_k_items(
         self, mock_agent, mock_llm, llm_response_factory
@@ -339,7 +339,6 @@ class TestSTLTMemory:
         """
         Verify that _aprune_long_term_memory behaves the same asynchronously
         """
-        import asyncio
 
         async def mock_agenerate(prompt):
             if "compresses excessively long text memories" in prompt:
