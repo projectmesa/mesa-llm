@@ -33,14 +33,17 @@ class STLTMemory(Memory):
         consolidation_capacity: int = 2,
         display: bool = True,
         llm_model: str | None = None,
+        long_term_char_limit: int = 2000,
     ):
         """
         Initialize the memory
 
         Args:
             short_term_capacity : the number of interactions to store in the short term memory
+            consolidation_capacity : the amount of items to pop and summarize
             llm_model : the model to use for the summarization
             agent : the agent that the memory belongs to
+            long_term_char_limit : maximum characters the long_term_memory is allowed to hold before triggering a pruning pass
         """
         if not llm_model:
             raise ValueError(
@@ -57,6 +60,7 @@ class STLTMemory(Memory):
         self.consolidation_capacity = (
             consolidation_capacity if consolidation_capacity > 0 else None
         )
+        self.long_term_char_limit = long_term_char_limit
 
         self.short_term_memory = deque()
         self.long_term_memory = ""
@@ -65,6 +69,15 @@ class STLTMemory(Memory):
             The long term memory should be a summary of the short term memory that is concise and informative.
             If the short term memory is empty, return the long term memory unchanged.
             If the long term memory is not empty, update it to include the new information from the short term memory.
+            """
+
+        self.pruning_prompt = """
+            You are a helpful assistant that compresses excessively long text memories.
+            The following text represents an agent's long-term memory. It has grown too large.
+            Please compress it, retaining only the most critical overarching facts and lessons, and discarding less salient or outdated details.
+            
+            Current Long-term memory to prune:
+            {long_term_memory}
             """
 
         if self.agent.step_prompt:
@@ -104,6 +117,7 @@ class STLTMemory(Memory):
         prompt = self._build_consolidation_prompt(popped_memories)
         response = self.llm.generate(prompt)
         self.long_term_memory = response.choices[0].message.content
+        self._prune_long_term_memory()
 
     async def _aupdate_long_term_memory(
         self, popped_memories: list[MemoryEntry] | None = None
@@ -114,6 +128,25 @@ class STLTMemory(Memory):
         prompt = self._build_consolidation_prompt(popped_memories)
         response = await self.llm.agenerate(prompt)
         self.long_term_memory = response.choices[0].message.content
+        await self._aprune_long_term_memory()
+
+    def _prune_long_term_memory(self):
+        """
+        If the long term memory exceeds the character bounds, compress it
+        """
+        if len(self.long_term_memory) > self.long_term_char_limit:
+            prompt = self.pruning_prompt.format(long_term_memory=self.long_term_memory)
+            response = self.llm.generate(prompt)
+            self.long_term_memory = response.choices[0].message.content
+
+    async def _aprune_long_term_memory(self):
+        """
+        Async evaluation for compressing the long term memory
+        """
+        if len(self.long_term_memory) > self.long_term_char_limit:
+            prompt = self.pruning_prompt.format(long_term_memory=self.long_term_memory)
+            response = await self.llm.agenerate(prompt)
+            self.long_term_memory = response.choices[0].message.content
 
     def _process_step_core(self, pre_step: bool):
         """

@@ -147,9 +147,9 @@ class TestSTLTMemory:
 
         memory._update_long_term_memory()
 
-        assert isinstance(memory.long_term_memory, str), (
-            "long_term_memory must be a string, not a ModelResponse object"
-        )
+        assert isinstance(
+            memory.long_term_memory, str
+        ), "long_term_memory must be a string, not a ModelResponse object"
         assert memory.long_term_memory == "This is the summary text"
 
     def test_observation_tracking(self, mock_agent):
@@ -181,9 +181,9 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(result, str), (
-            f"get_prompt_ready() must return str, got {type(result).__name__}"
-        )
+        assert isinstance(
+            result, str
+        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
         assert "Short term memory:" in result
         assert "Long term memory:" in result
         assert "Test obs" in result
@@ -195,9 +195,9 @@ class TestSTLTMemory:
 
         result = memory.get_prompt_ready()
 
-        assert isinstance(result, str), (
-            f"get_prompt_ready() must return str, got {type(result).__name__}"
-        )
+        assert isinstance(
+            result, str
+        ), f"get_prompt_ready() must return str, got {type(result).__name__}"
         assert "Short term memory:" in result
         assert "Long term memory:" in result
 
@@ -233,9 +233,9 @@ class TestSTLTMemory:
         call_args = mock_llm.generate.call_args[0][0]
 
         # The oldest entry MUST be in the prompt sent to the LLM
-        assert "critical event at step 0" in call_args, (
-            "Oldest memory entry was silently dropped before consolidation!"
-        )
+        assert (
+            "critical event at step 0" in call_args
+        ), "Oldest memory entry was silently dropped before consolidation!"
 
     def test_memory_pops_and_summarizes_exact_k_items(
         self, mock_agent, mock_llm, llm_response_factory
@@ -281,3 +281,90 @@ class TestSTLTMemory:
         assert "event at step 2" not in call_args
         assert "event at step 3" not in call_args
         assert "event at step 4" not in call_args
+
+    def test_memory_decay_pruning_triggered(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """
+        Verify that _prune_long_term_memory is triggered when the long_term_memory length exceeds long_term_char_limit
+        """
+        mock_llm.generate.side_effect = [
+            llm_response_factory(
+                "A" * 200
+            ),  # First consolidation returns a huge string
+            llm_response_factory(
+                "Compressed summary"
+            ),  # The pruning pass returns a short string
+        ]
+
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=1,
+            consolidation_capacity=1,
+            llm_model="provider/test_model",
+            long_term_char_limit=100,  # Small limit to force pruning easily
+        )
+        memory.llm = mock_llm
+
+        # Fill the memory queue directly to trigger consolidation without full process_step overhead
+        memory.short_term_memory.append(
+            MemoryEntry(content={"msg": "1"}, step=1, agent=mock_agent)
+        )
+        memory.short_term_memory.append(
+            MemoryEntry(content={"msg": "2"}, step=2, agent=mock_agent)
+        )
+
+        # Trigger consolidation step (pops 1 memory)
+        memory._update_long_term_memory(
+            popped_memories=[memory.short_term_memory.popleft()]
+        )
+
+        # First call was the standard consolidation prompt
+        assert "Short term memory" in mock_llm.generate.call_args_list[0][0][0]
+        # Second call must be the pruning prompt because the 200 char string exceeded our limit of 100
+        assert (
+            "compresses excessively long text memories"
+            in mock_llm.generate.call_args_list[1][0][0]
+        )
+
+        # Ensure the final memory value is the compressed version
+        assert memory.long_term_memory == "Compressed summary"
+
+    import pytest
+
+    @pytest.mark.asyncio
+    async def test_amemory_decay_pruning_triggered(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """
+        Verify that _aprune_long_term_memory behaves the same asynchronously
+        """
+        import asyncio
+
+        async def mock_agenerate(prompt):
+            if "compresses excessively long text memories" in prompt:
+                return llm_response_factory("Async compressed summary")
+            return llm_response_factory("B" * 300)
+
+        mock_llm.agenerate = mock_agenerate
+
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=1,
+            consolidation_capacity=1,
+            llm_model="provider/test_model",
+            long_term_char_limit=150,
+        )
+        memory.llm = mock_llm
+
+        memory.short_term_memory.append(
+            MemoryEntry(content={"msg": "asmsg 1"}, step=1, agent=mock_agent)
+        )
+
+        # Trigger consolidation
+        await memory._aupdate_long_term_memory(
+            popped_memories=[memory.short_term_memory.popleft()]
+        )
+
+        # Ensure the async generation created the compressed output
+        assert memory.long_term_memory == "Async compressed summary"
