@@ -252,6 +252,23 @@ def test_threaded_skips_agent_without_step_or_astep():
     assert good.counter == 1
 
 
+def test_sync_wrapper_threading_mode():
+    import mesa_llm.parallel_stepping as ps
+
+    original = ps._PARALLEL_STEPPING_MODE
+    try:
+        ps._PARALLEL_STEPPING_MODE = "threading"
+        m = DummyModel()
+        good = AsyncAgent(m)
+        bad = FailingAsyncAgent(m)
+        results = step_agents_parallel_sync([bad, good], on_error="continue")
+        assert good.counter == 1
+        failed = [r for r in results if not r.success]
+        assert len(failed) == 1
+    finally:
+        ps._PARALLEL_STEPPING_MODE = original
+
+
 def test_sync_wrapper_unknown_mode_raises():
     import mesa_llm.parallel_stepping as ps
 
