@@ -222,3 +222,45 @@ def test_backward_compat_no_params():
     assert a2.counter == 1
     assert len(results) == 2
     assert all(r.success for r in results)
+
+
+# --- Coverage gap tests ---
+
+
+class _Bare:
+    """Object with neither step() nor astep() — should be skipped."""
+
+    pass
+
+
+@pytest.mark.asyncio
+async def test_parallel_skips_agent_without_step_or_astep():
+    m = DummyModel()
+    good = AsyncAgent(m)
+    noop = _Bare()
+    results = await step_agents_parallel([noop, good])
+    assert len(results) == 1
+    assert results[0].success
+    assert good.counter == 1
+
+
+def test_threaded_skips_agent_without_step_or_astep():
+    m = DummyModel()
+    good = SyncAgent(m)
+    noop = _Bare()
+    results = step_agents_multithreaded([noop, good])
+    assert len(results) == 1
+    assert results[0].success
+    assert good.counter == 1
+
+
+def test_sync_wrapper_unknown_mode_raises():
+    import mesa_llm.parallel_stepping as ps
+
+    original = ps._PARALLEL_STEPPING_MODE
+    try:
+        ps._PARALLEL_STEPPING_MODE = "unknown"
+        with pytest.raises(ValueError, match="Unknown parallel stepping mode"):
+            step_agents_parallel_sync([])
+    finally:
+        ps._PARALLEL_STEPPING_MODE = original
