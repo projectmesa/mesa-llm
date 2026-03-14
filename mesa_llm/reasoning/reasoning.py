@@ -123,7 +123,7 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        plan = Plan(step=int(self.agent.model.time), llm_plan=response_message, ttl=ttl)
 
         return plan
 
@@ -146,6 +146,6 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        plan = Plan(step=int(self.agent.model.time), llm_plan=response_message, ttl=ttl)
 
         return plan
