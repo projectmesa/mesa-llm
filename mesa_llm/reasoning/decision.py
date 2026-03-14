@@ -15,7 +15,7 @@ class DecisionOption(BaseModel):
     score: float = Field(
         ge=0.0,
         le=1.0,
-        description="Relative evaluation score for this option in the current context."
+        description="Relative evaluation score for this option in the current context.",
     )
 
 
