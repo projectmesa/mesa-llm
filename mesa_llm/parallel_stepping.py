@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from mesa.agent import Agent, AgentSet
@@ -19,16 +20,63 @@ logger = logging.getLogger(__name__)
 # Global variable to control parallel stepping mode
 _PARALLEL_STEPPING_MODE = "asyncio"  # or "threading"
 
+_PARALLEL_ON_ERROR = "continue"  # "continue" | "raise"
+_PARALLEL_TIMEOUT: float | None = None
 
-async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
-    """Step all agents in parallel using async/await."""
-    tasks = []
+
+@dataclass
+class AgentStepResult:
+    """Result of a single agent's step during parallel execution."""
+
+    agent: Agent | LLMAgent
+    success: bool
+    exception: BaseException | None = None
+
+
+async def step_agents_parallel(
+    agents: list[Agent | LLMAgent],
+    *,
+    on_error: str | None = None,
+    timeout: float | None = None,
+) -> list[AgentStepResult]:
+    """Step all agents in parallel using async/await with error isolation."""
+    effective_on_error = on_error if on_error is not None else _PARALLEL_ON_ERROR
+    effective_timeout = timeout if timeout is not None else _PARALLEL_TIMEOUT
+
+    coros = []
+    agent_list = []
     for agent in agents:
         if hasattr(agent, "astep"):
-            tasks.append(agent.astep())
+            coro = agent.astep()
         elif hasattr(agent, "step"):
-            tasks.append(_sync_step(agent))
-    await asyncio.gather(*tasks)
+            coro = _sync_step(agent)
+        else:
+            continue
+        if effective_timeout is not None:
+            coro = asyncio.wait_for(coro, timeout=effective_timeout)
+        coros.append(coro)
+        agent_list.append(agent)
+
+    outcomes = await asyncio.gather(*coros, return_exceptions=True)
+
+    results = []
+    for agent, outcome in zip(agent_list, outcomes):
+        if isinstance(outcome, BaseException):
+            logger.error(
+                "Agent %s (id=%s) failed during parallel step: %s",
+                agent.__class__.__name__,
+                getattr(agent, "unique_id", "?"),
+                outcome,
+            )
+            results.append(
+                AgentStepResult(agent=agent, success=False, exception=outcome)
+            )
+            if effective_on_error == "raise":
+                raise outcome
+        else:
+            results.append(AgentStepResult(agent=agent, success=True))
+
+    return results
 
 
 async def _sync_step(agent: Agent) -> None:
@@ -36,39 +84,70 @@ async def _sync_step(agent: Agent) -> None:
     agent.step()
 
 
-def step_agents_multithreaded(agents: list[Agent | LLMAgent]) -> None:
-    """Step all agents in parallel using threads."""
+def step_agents_multithreaded(
+    agents: list[Agent | LLMAgent],
+    *,
+    on_error: str | None = None,
+    timeout: float | None = None,
+) -> list[AgentStepResult]:
+    """Step all agents in parallel using threads with error isolation."""
+    effective_on_error = on_error if on_error is not None else _PARALLEL_ON_ERROR
+    effective_timeout = timeout if timeout is not None else _PARALLEL_TIMEOUT
+
+    results = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
+        agent_futures = []
         for agent in agents:
             if hasattr(agent, "astep"):
-                # run async steps in the event loop in a thread
-                futures.append(
-                    executor.submit(lambda agent=agent: asyncio.run(agent.astep()))
-                )
+                future = executor.submit(lambda agent=agent: asyncio.run(agent.astep()))
             elif hasattr(agent, "step"):
-                futures.append(executor.submit(agent.step))
+                future = executor.submit(agent.step)
+            else:
+                continue
+            agent_futures.append((agent, future))
 
-        for future in futures:
-            future.result()
+        for agent, future in agent_futures:
+            try:
+                future.result(timeout=effective_timeout)
+                results.append(AgentStepResult(agent=agent, success=True))
+            except Exception as exc:
+                logger.error(
+                    "Agent %s (id=%s) failed during threaded step: %s",
+                    agent.__class__.__name__,
+                    getattr(agent, "unique_id", "?"),
+                    exc,
+                )
+                results.append(
+                    AgentStepResult(agent=agent, success=False, exception=exc)
+                )
+                if effective_on_error == "raise":
+                    raise
+    return results
 
 
-def step_agents_parallel_sync(agents: list[Agent | LLMAgent]) -> None:
+def step_agents_parallel_sync(
+    agents: list[Agent | LLMAgent],
+    *,
+    on_error: str | None = None,
+    timeout: float | None = None,
+) -> list[AgentStepResult]:
     """Synchronous wrapper for parallel stepping using the global mode."""
     if _PARALLEL_STEPPING_MODE == "asyncio":
         try:
             asyncio.get_running_loop()
-            # If in event loop, use thread
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(
-                    lambda: asyncio.run(step_agents_parallel(agents))
+                    lambda: asyncio.run(
+                        step_agents_parallel(agents, on_error=on_error, timeout=timeout)
+                    )
                 )
-                future.result()
+                return future.result()
         except RuntimeError:
-            # No event loop - create one
-            asyncio.run(step_agents_parallel(agents))
+            return asyncio.run(
+                step_agents_parallel(agents, on_error=on_error, timeout=timeout)
+            )
     elif _PARALLEL_STEPPING_MODE == "threading":
-        step_agents_multithreaded(agents)
+        return step_agents_multithreaded(agents, on_error=on_error, timeout=timeout)
     else:
         raise ValueError(f"Unknown parallel stepping mode: {_PARALLEL_STEPPING_MODE}")
 
@@ -87,18 +166,30 @@ def _enhanced_shuffle_do(self, method: str, *args, **kwargs):
     _original_shuffle_do(self, method, *args, **kwargs)
 
 
-def enable_automatic_parallel_stepping(mode: str = "asyncio"):
-    """Enable automatic parallel stepping with selectable mode ('asyncio' or 'threading')."""
-    global _PARALLEL_STEPPING_MODE  # noqa: PLW0603
+def enable_automatic_parallel_stepping(
+    mode: str = "asyncio",
+    *,
+    on_error: str = "continue",
+    timeout: float | None = None,
+):
+    """Enable automatic parallel stepping with selectable mode and error handling."""
+    global _PARALLEL_STEPPING_MODE, _PARALLEL_ON_ERROR, _PARALLEL_TIMEOUT  # noqa: PLW0603
     if mode not in ("asyncio", "threading"):
         raise ValueError("mode must be either 'asyncio' or 'threading'")
+    if on_error not in ("continue", "raise"):
+        raise ValueError("on_error must be either 'continue' or 'raise'")
     _PARALLEL_STEPPING_MODE = mode
+    _PARALLEL_ON_ERROR = on_error
+    _PARALLEL_TIMEOUT = timeout
     AgentSet.shuffle_do = _enhanced_shuffle_do
 
 
 def disable_automatic_parallel_stepping():
-    """Restore original shuffle_do behavior."""
+    """Restore original shuffle_do behavior and reset config."""
+    global _PARALLEL_ON_ERROR, _PARALLEL_TIMEOUT  # noqa: PLW0603
     AgentSet.shuffle_do = _original_shuffle_do
+    _PARALLEL_ON_ERROR = "continue"
+    _PARALLEL_TIMEOUT = None
 
 
 # --- Monkey-patch AgentSet with do_async for async parallel method calls ---
@@ -121,7 +212,17 @@ def _agentset_do_async(self, method: str, *args, **kwargs):
                 raise AttributeError(
                     f"Agent {agent} does not have async method '{method}'"
                 )
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for agent, result in zip(self, results):
+            if isinstance(result, BaseException):
+                logger.error(
+                    "Agent %s (id=%s) failed during do_async('%s'): %s",
+                    agent.__class__.__name__,
+                    getattr(agent, "unique_id", "?"),
+                    method,
+                    result,
+                )
+        return results
 
     return _run()
 
