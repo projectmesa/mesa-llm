@@ -230,8 +230,6 @@ def test_backward_compat_no_params():
 class _Bare:
     """Object with neither step() nor astep() — should be skipped."""
 
-    pass
-
 
 @pytest.mark.asyncio
 async def test_parallel_skips_agent_without_step_or_astep():
