@@ -207,15 +207,19 @@ def speak_to(
         and listener_agent.unique_id != agent.unique_id
     ]
 
+    recipient_ids = [la.unique_id for la in listener_agents]
+
     for recipient in listener_agents:
-        recipient.memory.add_to_memory(
+        memory = getattr(recipient, "memory", None)
+        if memory is None:
+            continue
+        memory.add_to_memory(
             type="message",
             content={
                 "message": message,
                 "sender": agent.unique_id,
-                "recipients": [
-                    listener_agent.unique_id for listener_agent in listener_agents
-                ],
+                "recipients": recipient_ids,
             },
         )
-    return f"{agent.unique_id} → {[agent.unique_id for agent in listener_agents]} : {message}"
+
+    return f"{agent.unique_id} → {recipient_ids} : {message}"
