@@ -59,7 +59,7 @@ class MemoryEntry:
 
     def display(self):
         if self.agent and hasattr(self.agent, "memory") and self.agent.memory.display:
-            title = f"Step [bold purple]{self.agent.model.steps}[/bold purple] [bold]|[/bold] {type(self.agent).__name__} [bold purple]{self.agent.unique_id}[/bold purple]"
+            title = f"Step [bold purple]{self.agent.model.time}[/bold purple] [bold]|[/bold] {type(self.agent).__name__} [bold purple]{self.agent.unique_id}[/bold purple]"
             panel = Panel(
                 self.__str__(),
                 title=title,

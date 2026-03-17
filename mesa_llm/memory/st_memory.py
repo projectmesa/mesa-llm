@@ -66,7 +66,7 @@ class ShortTermMemory(Memory):
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=merged_content,
-                step=self.agent.model.steps,
+                step=self.agent.model.time,
             )
             self.short_term_memory.append(new_entry)
             self._current_step_entry = None
