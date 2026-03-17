@@ -48,7 +48,16 @@ class TestReasoningBase:
         # 1. Setup a mock agent with all necessary components
         mock_agent.model.steps = 5
 
-        mock_llm_response = llm_response_factory(content="Final LLM message")
+        # Create a proper tool call structure
+        mock_tool_call = {
+            "id": "test_call_id",
+            "type": "function",
+            "function": {"name": "test_tool", "arguments": '{"arg": "value"}'},
+        }
+
+        mock_llm_response = llm_response_factory(
+            content="Final LLM message", tool_calls=[mock_tool_call]
+        )
         mock_agent.llm.generate.return_value = mock_llm_response
 
         # Mock the Tool Manager
@@ -90,9 +99,23 @@ class TestReasoningBase:
         """Test that execute_tool_call propagates caller-provided TTL."""
         mock_agent = Mock()
         mock_agent.model.steps = 5
+        mock_agent.unique_id = "test_agent"
+
+        # Create a proper tool call structure
+        mock_tool_call = {
+            "id": "test_call_id",
+            "type": "function",
+            "function": {"name": "test_tool", "arguments": '{"arg": "value"}'},
+        }
+
         mock_llm_response = Mock()
-        mock_llm_response.choices = [Mock()]
-        mock_llm_response.choices[0].message = "Final LLM message"
+        mock_choice = Mock()
+        mock_message = Mock()
+        mock_message.tool_calls = [mock_tool_call]
+        mock_message.content = "Test response"
+        mock_choice.message = mock_message
+        mock_llm_response.choices = [mock_choice]
+
         mock_agent.llm.generate.return_value = mock_llm_response
         mock_agent.tool_manager.get_all_tools_schema.return_value = []
 
@@ -105,3 +128,4 @@ class TestReasoningBase:
 
         assert isinstance(result_plan, Plan)
         assert result_plan.ttl == 7
+        assert result_plan.llm_plan == mock_message

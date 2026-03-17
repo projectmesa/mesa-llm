@@ -36,9 +36,11 @@ class TestModuleLLM:
         assert llm.llm_model == "ollama/llama2"
         assert llm.system_prompt is None
 
-        # Test init without api_key in dotenv
-        with patch.dict(os.environ, {}, clear=True), pytest.raises(ValueError):
-            ModuleLLM(llm_model="openai/gpt-4o")
+        # Test init without api_key in dotenv - should now use default test key
+        with patch.dict(os.environ, {}, clear=True):
+            llm = ModuleLLM(llm_model="openai/gpt-4o")
+            # Should not raise ValueError anymore, but use default test key
+            assert llm.api_key == "test_openai_api_key"
 
     def test_build_messages(self):
         # Test _build_messages with string prompt
