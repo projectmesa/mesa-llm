@@ -78,7 +78,7 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = DummyModel()
     agent = LLMAgent.create_agents(
@@ -135,7 +135,7 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = DummyModel()
     agent = LLMAgent.create_agents(
