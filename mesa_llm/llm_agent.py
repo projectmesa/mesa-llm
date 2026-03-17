@@ -1,4 +1,5 @@
 import math
+import reprlib
 
 from mesa.agent import Agent
 from mesa.discrete_space import (
@@ -91,7 +92,7 @@ class LLMAgent(Agent):
             f"reasoning={self.reasoning.__name__}, "
             f"vision={self.vision}, "
             f"memory_size={memory_size}, "
-            f"internal_state={self.internal_state}"
+            f"internal_state={reprlib.repr(self.internal_state)}"
             f")"
         )
 

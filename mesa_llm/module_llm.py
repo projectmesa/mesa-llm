@@ -79,6 +79,13 @@ class ModuleLLM:
                 self.llm_model,
             )
 
+    @staticmethod
+    def _safe_api_base(url: str | None) -> str | None:
+        """Redact inline auth tokens from api_base to prevent credential leakage in logs."""
+        if url and ("?" in url or "key=" in url.lower()):
+            return url.split("?")[0] + "?[redacted]"
+        return url
+
     def __repr__(self) -> str:
         prompt_preview = (
             self.system_prompt[:50] + "..."
@@ -88,7 +95,7 @@ class ModuleLLM:
         return (
             f"ModuleLLM("
             f"llm_model='{self.llm_model}', "
-            f"api_base={self.api_base!r}, "
+            f"api_base={self._safe_api_base(self.api_base)!r}, "
             f"system_prompt={prompt_preview!r})"
         )
 
