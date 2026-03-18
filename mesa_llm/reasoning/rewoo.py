@@ -1,3 +1,4 @@
+import copy
 from typing import TYPE_CHECKING
 
 from mesa_llm.reasoning.reasoning import (
@@ -115,7 +116,7 @@ class ReWOOReasoning(Reasoning):
             )
             self.remaining_tool_calls -= 1
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
-            current_plan = self.current_plan
+            current_plan = copy.copy(self.current_plan)
             current_plan.tool_calls = tool_call
             return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
 
@@ -175,7 +176,7 @@ class ReWOOReasoning(Reasoning):
             )
             self.remaining_tool_calls -= 1
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
-            current_plan = self.current_plan
+            current_plan = copy.copy(self.current_plan)
             current_plan.tool_calls = tool_call
             return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
 

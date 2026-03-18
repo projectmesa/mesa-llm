@@ -34,6 +34,45 @@ class TestMemoryEntry:
         assert "Test content" in str_repr
         assert "observation" in str_repr
 
+    def test_memory_entry_str_with_list_of_dicts(self):
+        """Test MemoryEntry string representation with list values (e.g. tool_calls)."""
+        mock_agent = Mock()
+        content = {
+            "action": [
+                {"name": "move_one_step", "response": "moved"},
+                {"name": "arrest_citizen", "response": "arrested"},
+            ]
+        }
+        entry = MemoryEntry(content=content, step=1, agent=mock_agent)
+        str_repr = str(entry)
+        assert "move_one_step" in str_repr
+        assert "arrest_citizen" in str_repr
+
+    def test_memory_entry_str_with_list_of_strings(self):
+        """Test MemoryEntry string representation with a list of plain strings."""
+        mock_agent = Mock()
+        content = {"tags": ["alpha", "beta"]}
+        entry = MemoryEntry(content=content, step=1, agent=mock_agent)
+        str_repr = str(entry)
+        assert "alpha" in str_repr
+        assert "beta" in str_repr
+
+    def test_memory_entry_str_with_nested_tool_calls_list(self):
+        """Test MemoryEntry string representation with nested tool_calls list under action."""
+        mock_agent = Mock()
+        content = {
+            "action": {
+                "tool_calls": [
+                    {"name": "move_one_step", "response": "moved"},
+                    {"name": "arrest_citizen", "response": "arrested"},
+                ]
+            }
+        }
+        entry = MemoryEntry(content=content, step=1, agent=mock_agent)
+        str_repr = str(entry)
+        assert "move_one_step" in str_repr
+        assert "arrest_citizen" in str_repr
+
 
 class MemoryMock(Memory):
     def __init__(

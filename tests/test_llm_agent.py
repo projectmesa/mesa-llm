@@ -5,6 +5,7 @@ import re
 from unittest.mock import patch
 
 import pytest
+from mesa.agent import Agent
 from mesa.discrete_space import OrthogonalMooreGrid
 from mesa.model import Model
 from mesa.space import ContinuousSpace, MultiGrid, SingleGrid
@@ -87,6 +88,9 @@ def create_two_agent_model(seed=45):
     model = create_dummy_model(
         seed=seed, grid_type="MultiGrid", width=3, height=3, torus=False
     )
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(3, 3, torus=False)
 
     sender = create_test_agent(
         model,
@@ -138,18 +142,158 @@ def test_apply_plan_adds_to_memory(monkeypatch):
 
     assert resp == fake_response
 
-    assert {
-        "tool": "foo",
-        "argument": "bar",
-    } in agent.memory.step_content.values() or agent.memory.step_content == {
-        "tool": "foo",
-        "argument": "bar",
+    action_content = agent.memory.step_content.get("action")
+    assert action_content is not None
+    assert "tool_calls" in action_content
+    assert len(action_content["tool_calls"]) == 1
+    assert action_content["tool_calls"][0] == {"tool": "foo", "argument": "bar"}
+
+
+def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
+    """All tool call results must be preserved when the LLM returns >1 tool call."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(5, 5, torus=False)
+
+    model = DummyModel()
+    agent = LLMAgent.create_agents(
+        model,
+        n=1,
+        reasoning=ReActReasoning,
+        system_prompt="test",
+        vision=-1,
+        internal_state=["test_state"],
+    ).to_list()[0]
+    model.grid.place_agent(agent, (1, 1))
+    agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
+
+    fake_response = [
+        {
+            "tool_call_id": "1",
+            "role": "tool",
+            "name": "move_one_step",
+            "response": "agent moved to (3, 4)",
+        },
+        {
+            "tool_call_id": "2",
+            "role": "tool",
+            "name": "arrest_citizen",
+            "response": "Citizen 12 arrested",
+        },
+    ]
+    monkeypatch.setattr(
+        agent.tool_manager, "call_tools", lambda agent, llm_response: fake_response
+    )
+
+    plan = Plan(step=0, llm_plan="do something")
+    agent.apply_plan(plan)
+
+    action_content = agent.memory.step_content.get("action")
+    assert action_content is not None
+    assert "tool_calls" in action_content
+    assert len(action_content["tool_calls"]) == 2
+    assert action_content["tool_calls"][0] == {
+        "name": "move_one_step",
+        "response": "agent moved to (3, 4)",
+    }
+    assert action_content["tool_calls"][1] == {
+        "name": "arrest_citizen",
+        "response": "Citizen 12 arrested",
+    }
+
+
+@pytest.mark.asyncio
+async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
+    """Async variant: all tool call results must be preserved."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(5, 5, torus=False)
+
+    model = DummyModel()
+    agent = LLMAgent.create_agents(
+        model,
+        n=1,
+        reasoning=ReActReasoning,
+        system_prompt="test",
+        vision=-1,
+        internal_state=["test_state"],
+    ).to_list()[0]
+    model.grid.place_agent(agent, (1, 1))
+    agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
+
+    fake_response = [
+        {
+            "tool_call_id": "1",
+            "role": "tool",
+            "name": "move_one_step",
+            "response": "agent moved to (3, 4)",
+        },
+        {
+            "tool_call_id": "2",
+            "role": "tool",
+            "name": "arrest_citizen",
+            "response": "Citizen 12 arrested",
+        },
+    ]
+
+    async def fake_acall_tools(agent, llm_response):
+        return fake_response
+
+    monkeypatch.setattr(agent.tool_manager, "acall_tools", fake_acall_tools)
+
+    plan = Plan(step=0, llm_plan="do something")
+    await agent.aapply_plan(plan)
+
+    action_content = agent.memory.step_content.get("action")
+    assert action_content is not None
+    assert "tool_calls" in action_content
+    assert len(action_content["tool_calls"]) == 2
+    assert action_content["tool_calls"][0] == {
+        "name": "move_one_step",
+        "response": "agent moved to (3, 4)",
+    }
+    assert action_content["tool_calls"][1] == {
+        "name": "arrest_citizen",
+        "response": "Citizen 12 arrested",
     }
 
 
 def test_generate_obs_with_one_neighbor(monkeypatch):
     model = create_dummy_model(
         seed=45, grid_type="MultiGrid", width=3, height=3, torus=False
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=45)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+        def add_agent(self, pos, agent_class=LLMAgent):
+            system_prompt = "You are an agent in a simulation."
+            agents = agent_class.create_agents(
+                self,
+                n=1,
+                reasoning=ReActReasoning,
+                system_prompt=system_prompt,
+                vision=-1,
+                internal_state=["test_state"],
+            )
+            x, y = pos
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
+
+    model = DummyModel()
+
+    agent = model.add_agent((1, 1))
+    agent.memory = ShortTermMemory(
+        agent=agent,
+        n=5,
+        display=True,
     )
 
     agent = create_test_agent(model, pos=(1, 1))
@@ -177,6 +321,42 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
 
 def test_send_message_updates_both_agents_memory(monkeypatch):
     sender, recipient = create_two_agent_model(seed=45)
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=45)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+        def add_agent(self, pos, agent_class=LLMAgent):
+            system_prompt = "You are an agent in a simulation."
+            agents = agent_class.create_agents(
+                self,
+                n=1,
+                reasoning=lambda agent: None,
+                system_prompt=system_prompt,
+                vision=-1,
+                internal_state=["test_state"],
+            )
+            x, y = pos
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
+
+    model = DummyModel()
+    sender = model.add_agent((0, 0))
+    sender.memory = ShortTermMemory(
+        agent=sender,
+        n=5,
+        display=True,
+    )
+    sender.unique_id = 1
+
+    recipient = model.add_agent((1, 1))
+    recipient.memory = ShortTermMemory(
+        agent=recipient,
+        n=5,
+        display=True,
+    )
+    recipient.unique_id = 2
 
     # Track how many times add_to_memory is called
     call_counter = {"count": 0}
@@ -202,6 +382,29 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
         seed=42, grid_type="MultiGrid", width=3, height=3, torus=False
     )
     agent = create_test_agent(model, pos=(1, 1))
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+        def add_agent(self, pos):
+            system_prompt = "You are an agent in a simulation."
+            agents = LLMAgent.create_agents(
+                self,
+                n=1,
+                reasoning=ReActReasoning,
+                system_prompt=system_prompt,
+                vision=-1,
+                internal_state=["test_state"],
+            )
+
+            x, y = pos
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
+
+    model = DummyModel()
+    agent = model.add_agent((1, 1))
 
     # optional: you can replace with async memory stub
     async def fake_aadd_to_memory(*args, **kwargs):
@@ -229,6 +432,10 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
     model = create_dummy_model(
         seed=45, grid_type="MultiGrid", width=3, height=3, torus=False
     )
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=45)
+            self.grid = MultiGrid(3, 3, torus=False)
 
     agent = create_test_agent(model, pos=(1, 1))
     neighbor = create_test_agent(model, pos=(1, 2))
@@ -264,6 +471,12 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
     model = create_dummy_model(
         seed=1, grid_type="MultiGrid", width=3, height=3, torus=False
     )
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=1)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+    model = DummyModel()
 
     agent = CustomAgent.create_agents(
         model,
@@ -301,7 +514,7 @@ def _make_agent(model, vision=0, internal_state=None):
 
 def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
     """Agent location falls back to cell.coordinate when pos=None."""
-    model = Model(seed=42)
+    model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
     agent.cell = MockCell(coordinate=(3, 4))
@@ -314,7 +527,7 @@ def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
 
 def test_safer_cell_access_agent_without_cell_or_pos(monkeypatch):
     """Agent location returns None gracefully when neither pos nor cell exists."""
-    model = Model(seed=42)
+    model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
     if hasattr(agent, "cell"):
@@ -331,7 +544,7 @@ def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = GridModel()
@@ -364,7 +577,7 @@ def test_safer_cell_access_neighbor_without_cell_or_pos(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = GridModel()
@@ -398,7 +611,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
 
     class ContModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
 
     model = ContModel()
@@ -434,7 +647,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(10, 10, torus=False)
 
     model = GridModel()
@@ -464,7 +677,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
 
 def test_generate_obs_no_grid_with_vision(monkeypatch):
     """When the model has no grid/space, generate_obs falls back to empty neighbors."""
-    model = Model(seed=42)  # no grid, no space
+    model = Model(rng=42)  # no grid, no space
     agents = LLMAgent.create_agents(
         model,
         n=2,
@@ -496,7 +709,7 @@ def test_generate_obs_standard_grid_with_vision_radius(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             # Reverted to width/height for SingleGrid
             self.grid = SingleGrid(width=5, height=5, torus=False)
 
@@ -531,7 +744,7 @@ def test_generate_obs_orthogonal_grid_branches(monkeypatch):
 
     class OrthoModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             # Pass self.random to ensure reproducibility
             self.grid = OrthogonalMooreGrid(dimensions=(5, 5), random=self.random)
 
@@ -556,6 +769,76 @@ def test_generate_obs_orthogonal_grid_branches(monkeypatch):
     assert len(obs.local_state) == 0
 
 
+def test_generate_obs_with_non_llm_neighbor(monkeypatch):
+    """
+    _build_observation should work when a neighbor is a plain Mesa Agent
+    that has no internal_state attribute (e.g. a rule-based agent in a mixed sim).
+    """
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class PlainAgent(Agent):
+        """A regular Mesa agent with NO internal_state, simulates non-LLM agents."""
+
+        def step(self):
+            pass
+
+    class MixedModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(5, 5, torus=False)
+
+    model = MixedModel()
+    llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
+    plain = PlainAgent(model=model)
+
+    model.grid.place_agent(llm_agent, (2, 2))
+    model.grid.place_agent(plain, (3, 3))
+
+    monkeypatch.setattr(llm_agent.memory, "add_to_memory", lambda *a, **kw: None)
+
+    obs = llm_agent.generate_obs()
+
+    plain_key = f"PlainAgent {plain.unique_id}"
+    assert plain_key in obs.local_state
+    # Non-LLM agent should have an empty internal_state
+    assert obs.local_state[plain_key]["internal_state"] == []
+
+
+@pytest.mark.asyncio
+async def test_agenerate_obs_with_non_llm_neighbor(monkeypatch):
+    """
+    Async path shares _build_observation, must work for agenerate_obs().
+    """
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class PlainAgent(Agent):
+        def step(self):
+            pass
+
+    class MixedModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(5, 5, torus=False)
+
+    model = MixedModel()
+    llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
+    plain = PlainAgent(model=model)
+
+    model.grid.place_agent(llm_agent, (2, 2))
+    model.grid.place_agent(plain, (3, 3))
+
+    async def fake_aadd_to_memory(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(llm_agent.memory, "aadd_to_memory", fake_aadd_to_memory)
+
+    obs = await llm_agent.agenerate_obs()
+
+    plain_key = f"PlainAgent {plain.unique_id}"
+    assert plain_key in obs.local_state
+    assert obs.local_state[plain_key]["internal_state"] == []
+
+
 # ---------------------------------------------------------------------------
 # send_message / asend_message - store unique_ids, not Agent objects (#156)
 # ---------------------------------------------------------------------------
@@ -565,6 +848,36 @@ def _make_send_message_model(monkeypatch):
     """Shared setup: two-agent MultiGrid model with ShortTermMemory."""
     monkeypatch.setenv("GEMINI_API_KEY", "dummy")
     return create_two_agent_model(seed=45)
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=45)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+        def add_agent(self, pos):
+            agents = LLMAgent.create_agents(
+                self,
+                n=1,
+                reasoning=lambda agent: None,
+                system_prompt="Test",
+                vision=-1,
+                internal_state=[],
+            )
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, pos)
+            return agent
+
+    model = DummyModel()
+
+    sender = model.add_agent((0, 0))
+    sender.memory = ShortTermMemory(agent=sender, n=5, display=True)
+    sender.unique_id = 10
+
+    recipient = model.add_agent((1, 1))
+    recipient.memory = ShortTermMemory(agent=recipient, n=5, display=True)
+    recipient.unique_id = 20
+
+    return sender, recipient
 
 
 def test_send_message_stores_serializable_ids(monkeypatch):
