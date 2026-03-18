@@ -3,7 +3,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 from litellm import Choices, Message, ModelResponse
-from mesa.discrete_space import OrthogonalMooreGrid
 from mesa.model import Model
 
 from mesa_llm.llm_agent import LLMAgent
@@ -95,6 +94,7 @@ def basic_model():
     """Create basic model without grid"""
     return Model(rng=42)
 
+
 @pytest.fixture
 def grid_model():
     """Create model with MultiGrid"""
@@ -103,6 +103,7 @@ def grid_model():
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(10, 10, torus=False)
+
     return GridModel()
 
 
