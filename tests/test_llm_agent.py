@@ -20,6 +20,7 @@ def test_apply_plan_adds_to_memory(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
+
         def add_agent(self, pos):
             system_prompt = "You are an agent in a simulation."
             agents = LLMAgent.create_agents(
@@ -190,6 +191,7 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
         def __init__(self):
             super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
+
         def add_agent(self, pos, agent_class=LLMAgent):
             system_prompt = "You are an agent in a simulation."
             agents = agent_class.create_agents(
@@ -249,6 +251,7 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
         def __init__(self):
             super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
+
         def add_agent(self, pos, agent_class=LLMAgent):
             system_prompt = "You are an agent in a simulation."
             agents = agent_class.create_agents(
@@ -309,6 +312,7 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
+
         def add_agent(self, pos):
             system_prompt = "You are an agent in a simulation."
             agents = LLMAgent.create_agents(
@@ -359,6 +363,7 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
         def __init__(self):
             super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
+
         def add_agent(self, pos):
             agents = LLMAgent.create_agents(
                 self,
@@ -414,6 +419,7 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
         def __init__(self):
             super().__init__(rng=1)
             self.grid = MultiGrid(3, 3, torus=False)
+
     model = DummyModel()
 
     agent = CustomAgent.create_agents(
@@ -499,6 +505,7 @@ def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
+
     model = GridModel()
     agents = LLMAgent.create_agents(
         model,
@@ -535,6 +542,7 @@ def test_safer_cell_access_neighbor_without_cell_or_pos(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
+
     model = GridModel()
     agents = LLMAgent.create_agents(
         model,
@@ -572,6 +580,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+
     model = ContModel()
     agents = LLMAgent.create_agents(
         model,
@@ -607,6 +616,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(10, 10, torus=False)
+
     model = GridModel()
     agents = LLMAgent.create_agents(
         model,
@@ -753,6 +763,7 @@ def test_generate_obs_with_non_llm_neighbor(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
+
     model = MixedModel()
     llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
     plain = PlainAgent(model=model)
@@ -793,6 +804,7 @@ async def test_agenerate_obs_with_non_llm_neighbor(monkeypatch):
         def __init__(self):
             super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
+
     model = MixedModel()
     llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
     plain = PlainAgent(model=model)
@@ -833,6 +845,7 @@ def _make_send_message_model(monkeypatch):
         def __init__(self):
             super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
+
         def add_agent(self, pos):
             agents = LLMAgent.create_agents(
                 self,

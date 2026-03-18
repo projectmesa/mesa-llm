@@ -1,3 +1,5 @@
+import math
+
 from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
@@ -14,7 +16,7 @@ from mesa_llm.reasoning.reasoning import (
     Reasoning,
 )
 from mesa_llm.tools.tool_manager import ToolManager
-import math
+
 
 class LLMAgent(Agent):
     """
@@ -173,8 +175,6 @@ class LLMAgent(Agent):
                     neighbors = []
 
             elif space and isinstance(space, ContinuousSpace):
-                
-
                 my_pos = getattr(self, "pos", None)
                 if my_pos is not None:
                     neighbors = [
