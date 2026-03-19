@@ -62,9 +62,9 @@ def test_apply_plan_adds_to_memory(monkeypatch):
 
     action_content = agent.memory.step_content.get("action")
     assert action_content is not None
-    assert "tool_calls" in action_content
-    assert len(action_content["tool_calls"]) == 1
-    assert action_content["tool_calls"][0] == {"tool": "foo", "argument": "bar"}
+    assert "tool_calls" in action_content[0]
+    assert len(action_content[0]["tool_calls"]) == 1
+    assert action_content[0]["tool_calls"][0] == {"tool": "foo", "argument": "bar"}
 
 
 def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
@@ -111,13 +111,13 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
 
     action_content = agent.memory.step_content.get("action")
     assert action_content is not None
-    assert "tool_calls" in action_content
-    assert len(action_content["tool_calls"]) == 2
-    assert action_content["tool_calls"][0] == {
+    assert "tool_calls" in action_content[0]
+    assert len(action_content[0]["tool_calls"]) == 2
+    assert action_content[0]["tool_calls"][0] == {
         "name": "move_one_step",
         "response": "agent moved to (3, 4)",
     }
-    assert action_content["tool_calls"][1] == {
+    assert action_content[0]["tool_calls"][1] == {
         "name": "arrest_citizen",
         "response": "Citizen 12 arrested",
     }
@@ -170,13 +170,13 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
 
     action_content = agent.memory.step_content.get("action")
     assert action_content is not None
-    assert "tool_calls" in action_content
-    assert len(action_content["tool_calls"]) == 2
-    assert action_content["tool_calls"][0] == {
+    assert "tool_calls" in action_content[0]
+    assert len(action_content[0]["tool_calls"]) == 2
+    assert action_content[0]["tool_calls"][0] == {
         "name": "move_one_step",
         "response": "agent moved to (3, 4)",
     }
-    assert action_content["tool_calls"][1] == {
+    assert action_content[0]["tool_calls"][1] == {
         "name": "arrest_citizen",
         "response": "Citizen 12 arrested",
     }

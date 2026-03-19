@@ -127,6 +127,9 @@ class TestMemoryParent:
         # Should be non-empty step_content after adding to memory
         assert memory.step_content != {}
         assert "observation" in memory.step_content
+        assert isinstance(memory.step_content["observation"], list)
+        assert isinstance(memory.step_content["planning"], list)
+        assert isinstance(memory.step_content["action"], list)
 
     def test_add_to_memory_rejects_non_dict_content(self, mock_agent):
         memory = MemoryMock(agent=mock_agent)
@@ -149,3 +152,19 @@ class TestMemoryParent:
             str(exc_info.value)
             == "Expected 'content' to be dict, got str: 'raw async string plan'"
         )
+
+    def test_add_to_memory_preserves_multiple_entries(self):
+        """Multiple add_to_memory calls with the same type should accumulate, not overwrite."""
+        mock_agent = Mock()
+        memory = MemoryMock(agent=mock_agent)
+
+        memory.add_to_memory("message", {"text": "Hello"})
+        memory.add_to_memory("message", {"text": "World"})
+
+        assert "message" in memory.step_content
+        assert isinstance(memory.step_content["message"], list), (
+            "Expected message entries to be accumulated in a list"
+        )
+        assert len(memory.step_content["message"]) == 2
+        assert memory.step_content["message"][0] == {"text": "Hello"}
+        assert memory.step_content["message"][1] == {"text": "World"}

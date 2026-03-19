@@ -342,3 +342,12 @@ final_architecture.png
 GSoC_2025.md
 /architectures
 .instructions/
+
+# Diagnostic files
+output.txt
+pytest_failures.txt
+pytest_failures_all.txt
+show_stat.txt
+coverage.txt
+inbuilt_history.txt
+

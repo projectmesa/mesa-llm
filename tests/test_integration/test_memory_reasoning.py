@@ -127,9 +127,9 @@ class TestCoTWithShortTermMemory:
         assert isinstance(plan, Plan)
         assert plan.step == 1
         assert plan.llm_plan is rsp_exec.choices[0].message
-        assert memory.step_content["Observation"]["content"] == str(obs)
-        assert memory.step_content["Plan"]["content"] == plan_content
-        assert memory.step_content["Plan-Execution"]["content"] == str(plan)
+        assert memory.step_content["Observation"][0]["content"] == str(obs)
+        assert memory.step_content["Plan"][0]["content"] == plan_content
+        assert memory.step_content["Plan-Execution"][0]["content"] == str(plan)
         assert agent._step_display_data["plan_content"] == plan_content
         assert agent.llm.generate.call_count == 2
 
@@ -149,9 +149,9 @@ class TestCoTWithShortTermMemory:
         assert isinstance(plan, Plan)
         assert plan.step == 1
         assert plan.llm_plan is rsp_exec.choices[0].message
-        assert memory.step_content["Observation"]["content"] == str(obs)
-        assert memory.step_content["Plan"]["content"] == plan_content
-        assert memory.step_content["Plan-Execution"]["content"] == str(plan)
+        assert memory.step_content["Observation"][0]["content"] == str(obs)
+        assert memory.step_content["Plan"][0]["content"] == plan_content
+        assert memory.step_content["Plan-Execution"][0]["content"] == str(plan)
         assert agent._step_display_data["plan_content"] == plan_content
         assert agent.llm.agenerate.await_count == 2
 
@@ -205,9 +205,9 @@ class TestCoTWithSTLTMemory:
 
         assert isinstance(plan, Plan)
         assert plan.step == 1
-        assert memory.step_content["Observation"]["content"] == str(obs)
-        assert memory.step_content["Plan"]["content"] == plan_content
-        assert memory.step_content["Plan-Execution"]["content"] == str(plan)
+        assert memory.step_content["Observation"][0]["content"] == str(obs)
+        assert memory.step_content["Plan"][0]["content"] == plan_content
+        assert memory.step_content["Plan-Execution"][0]["content"] == str(plan)
         assert agent.llm.generate.call_count == 2
 
     def test_async_plan_works(self, monkeypatch):
@@ -225,9 +225,9 @@ class TestCoTWithSTLTMemory:
 
         assert isinstance(plan, Plan)
         assert plan.step == 1
-        assert memory.step_content["Observation"]["content"] == str(obs)
-        assert memory.step_content["Plan"]["content"] == plan_content
-        assert memory.step_content["Plan-Execution"]["content"] == str(plan)
+        assert memory.step_content["Observation"][0]["content"] == str(obs)
+        assert memory.step_content["Plan"][0]["content"] == plan_content
+        assert memory.step_content["Plan-Execution"][0]["content"] == str(plan)
         assert agent.llm.agenerate.await_count == 2
 
 
@@ -282,12 +282,12 @@ class TestCoTWithEpisodicMemory:
         assert isinstance(plan, Plan)
         entries = list(memory.memory_entries)
         assert len(entries) == 3
-        assert entries[0].content["Observation"]["content"] == str(obs)
-        assert entries[1].content["Plan"]["content"] == plan_content
-        assert entries[2].content["Plan-Execution"]["content"] == str(plan)
-        assert entries[0].content["Observation"]["importance"] == 3
-        assert entries[1].content["Plan"]["importance"] == 3
-        assert entries[2].content["Plan-Execution"]["importance"] == 3
+        assert entries[0].content["Observation"][0]["content"] == str(obs)
+        assert entries[1].content["Plan"][0]["content"] == plan_content
+        assert entries[2].content["Plan-Execution"][0]["content"] == str(plan)
+        assert entries[0].content["Observation"][0]["importance"] == 3
+        assert entries[1].content["Plan"][0]["importance"] == 3
+        assert entries[2].content["Plan-Execution"][0]["importance"] == 3
         assert memory.grade_event_importance.call_count == 3
 
     def test_async_plan_works(self, monkeypatch):
@@ -305,12 +305,12 @@ class TestCoTWithEpisodicMemory:
         assert isinstance(plan, Plan)
         entries = list(memory.memory_entries)
         assert len(entries) == 3
-        assert entries[0].content["Observation"]["content"] == str(obs)
-        assert entries[1].content["Plan"]["content"] == plan_content
-        assert entries[2].content["Plan-Execution"]["content"] == str(plan)
-        assert entries[0].content["Observation"]["importance"] == 3
-        assert entries[1].content["Plan"]["importance"] == 3
-        assert entries[2].content["Plan-Execution"]["importance"] == 3
+        assert entries[0].content["Observation"][0]["content"] == str(obs)
+        assert entries[1].content["Plan"][0]["content"] == plan_content
+        assert entries[2].content["Plan-Execution"][0]["content"] == str(plan)
+        assert entries[0].content["Observation"][0]["importance"] == 3
+        assert entries[1].content["Plan"][0]["importance"] == 3
+        assert entries[2].content["Plan-Execution"][0]["importance"] == 3
         assert memory.agrade_event_importance.await_count == 3
 
 
@@ -380,8 +380,8 @@ class TestReActWithSTLTMemory:
         plan = reasoning.plan(obs=obs)
 
         assert isinstance(plan, Plan)
-        assert memory.step_content["plan"]["reasoning"] == "test reasoning"
-        assert memory.step_content["plan"]["action"] == "test action"
+        assert memory.step_content["plan"][0]["reasoning"] == "test reasoning"
+        assert memory.step_content["plan"][0]["action"] == "test action"
         assert reasoning.execute_tool_call.call_args.args[0] == "test action"
         assert agent.llm.generate.call_count == 1
 
@@ -402,8 +402,8 @@ class TestReActWithSTLTMemory:
         plan = asyncio.run(reasoning.aplan(obs=obs))
 
         assert isinstance(plan, Plan)
-        assert memory.step_content["plan"]["reasoning"] == "test reasoning"
-        assert memory.step_content["plan"]["action"] == "test action"
+        assert memory.step_content["plan"][0]["reasoning"] == "test reasoning"
+        assert memory.step_content["plan"][0]["action"] == "test action"
         assert reasoning.aexecute_tool_call.await_args.args[0] == "test action"
         assert agent.llm.agenerate.await_count == 1
 
@@ -518,7 +518,7 @@ class TestReWOOWithShortTermMemory:
 
         plan = reasoning.plan()
         assert isinstance(plan, Plan)
-        assert memory.step_content["plan"]["content"] == plan_content
+        assert memory.step_content["plan"][0]["content"] == plan_content
         reasoning.execute_tool_call.assert_called_once_with(
             plan_content, selected_tools=None, ttl=1
         )
@@ -600,7 +600,7 @@ class TestReWOOWithSTLTMemory:
 
         plan = reasoning.plan()
         assert isinstance(plan, Plan)
-        assert memory.step_content["plan"]["content"] == plan_content
+        assert memory.step_content["plan"][0]["content"] == plan_content
         reasoning.execute_tool_call.assert_called_once_with(
             plan_content, selected_tools=None, ttl=1
         )
@@ -621,7 +621,7 @@ class TestReWOOWithSTLTMemory:
 
         plan = asyncio.run(reasoning.aplan())
         assert isinstance(plan, Plan)
-        assert memory.step_content["plan"]["content"] == plan_content
+        assert memory.step_content["plan"][0]["content"] == plan_content
         reasoning.aexecute_tool_call.assert_awaited_once_with(
             plan_content, selected_tools=None, ttl=1
         )
@@ -683,8 +683,8 @@ class TestReWOOWithEpisodicMemory:
         assert isinstance(plan, Plan)
         entries = list(memory.memory_entries)
         assert len(entries) == 1
-        assert entries[0].content["plan"]["content"] == plan_content
-        assert entries[0].content["plan"]["importance"] == 3
+        assert entries[0].content["plan"][0]["content"] == plan_content
+        assert entries[0].content["plan"][0]["importance"] == 3
         assert memory.grade_event_importance.call_count == 1
         reasoning.execute_tool_call.assert_called_once_with(
             plan_content, selected_tools=None, ttl=1
@@ -707,8 +707,8 @@ class TestReWOOWithEpisodicMemory:
         assert isinstance(plan, Plan)
         entries = list(memory.memory_entries)
         assert len(entries) == 1
-        assert entries[0].content["plan"]["content"] == plan_content
-        assert entries[0].content["plan"]["importance"] == 3
+        assert entries[0].content["plan"][0]["content"] == plan_content
+        assert entries[0].content["plan"][0]["importance"] == 3
         assert memory.grade_event_importance.call_count == 1
         reasoning.aexecute_tool_call.assert_awaited_once_with(
             plan_content, selected_tools=None, ttl=1

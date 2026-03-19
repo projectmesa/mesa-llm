@@ -169,10 +169,10 @@ class Memory(ABC):
                 k: v for k, v in content.items() if v != self.last_observation.get(k)
             }
             if changed_parts:
-                self.step_content[type] = changed_parts
+                self.step_content.setdefault(type, []).append(changed_parts)
             self.last_observation = content
         else:
-            self.step_content[type] = content
+            self.step_content.setdefault(type, []).append(content)
 
     # Async Function wrapper for add_to_memory()
     async def aadd_to_memory(self, type: str, content: dict):

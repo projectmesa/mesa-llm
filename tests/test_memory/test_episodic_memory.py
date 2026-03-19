@@ -80,6 +80,7 @@ class TestEpisodicMemory:
         assert len(memory.memory_entries) == 3, (
             "add_to_memory graded the event but never created a MemoryEntry"
         )
+        assert isinstance(memory.memory_entries[0].content["observation"], list)
 
     def test_finalize_entry_consistency(self, mock_agent):
         """Minimal tests for the helper function _finalize_entry().
@@ -93,7 +94,7 @@ class TestEpisodicMemory:
 
         memory._finalize_entry("observation", graded_content)
 
-        assert memory.memory_entries[0].content["observation"]["importance"] == 4
+        assert memory.memory_entries[0].content["observation"][0]["importance"] == 4
         assert memory.step_content == {}
         assert isinstance(memory.memory_entries[0], MemoryEntry)
         assert memory.memory_entries[0].step == mock_agent.model.steps
@@ -267,7 +268,7 @@ class TestEpisodicMemory:
 
         for new_entry in memory.memory_entries:
             event_type = next(iter(new_entry.content.keys()))
-            assert new_entry.content[event_type]["importance"] == 3
+            assert new_entry.content[event_type][0]["importance"] == 3
         assert memory.step_content == {}
         assert len(memory.memory_entries) == 3, (
             "aadd_to_memory graded the event but never created a MemoryEntry"
@@ -347,7 +348,7 @@ class TestEpisodicMemory:
         """Function to return importance when stored at top level"""
         memory = EpisodicMemory(agent=mock_agent, llm_model="provider/test_model")
         entry = MemoryEntry(
-            content={"importance": 5, "message": "hello"},
+            content={"message": [{"importance": 5, "message": "hello"}]},
             step=1,
             agent=mock_agent,
         )
@@ -359,7 +360,7 @@ class TestEpisodicMemory:
         memory = EpisodicMemory(agent=mock_agent, llm_model="provider/test_model")
 
         entry = MemoryEntry(
-            content={"message": {"importance": 4, "text": "nested"}},
+            content={"message": [{"importance": 4, "text": "nested"}]},
             step=1,
             agent=mock_agent,
         )

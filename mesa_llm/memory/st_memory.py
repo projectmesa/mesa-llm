@@ -61,8 +61,14 @@ class ShortTermMemory(Memory):
 
         new_entry = None
         if self._current_step_entry is not None:
+            # Merge current and pre-step content. Both are dicts of lists.
             merged_content = dict(self.step_content)
-            merged_content.update(self._current_step_entry.content)
+            for k, v in self._current_step_entry.content.items():
+                if k in merged_content and isinstance(merged_content[k], list) and isinstance(v, list):
+                    merged_content[k] = v + merged_content[k] # Pre-step goes first
+                else:
+                    merged_content[k] = v
+
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=merged_content,
@@ -98,10 +104,15 @@ class ShortTermMemory(Memory):
         """
         Get the communication history
         """
-        return "\n".join(
-            [
-                f"step {entry.step}: {entry.content['message']}\n\n"
-                for entry in self.short_term_memory
-                if "message" in entry.content
-            ]
-        )
+        history = []
+        for entry in self.short_term_memory:
+            if "message" in entry.content:
+                messages = entry.content["message"]
+                # Unified structure means message is a list
+                if isinstance(messages, list):
+                    for msg_entry in messages:
+                        msg = msg_entry.get("message", msg_entry)
+                        history.append(f"step {entry.step}: {msg}")
+                else:
+                    history.append(f"step {entry.step}: {messages}")
+        return "\n\n".join(history)

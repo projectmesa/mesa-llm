@@ -104,6 +104,7 @@ class EpisodicMemory(Memory):
         """
         Safely extracts importance score regardless of data structure.
         Handles:
+        - Nested in list: {"msg": [{"importance": 5}]}
         - Nested: {"msg": {"importance": 5}}
         - Flat:   {"importance": 5}
         """
@@ -112,7 +113,13 @@ class EpisodicMemory(Memory):
             return val if isinstance(val, (int, float)) else 1
 
         for value in entry.content.values():
-            if isinstance(value, dict) and "importance" in value:
+            if isinstance(value, list) and value:
+                # Handle unified structure where each type maps to a list
+                item = value[0]
+                if isinstance(item, dict) and "importance" in item:
+                    val = item["importance"]
+                    return val if isinstance(val, (int, float)) else 1
+            elif isinstance(value, dict) and "importance" in value:
                 val = value["importance"]
                 return val if isinstance(val, (int, float)) else 1
 
@@ -210,7 +217,7 @@ class EpisodicMemory(Memory):
         """Create and persist a finalized episodic entry."""
         new_entry = MemoryEntry(
             agent=self.agent,
-            content={type: graded_content},
+            content={type: [graded_content]},
             step=self.agent.model.steps,
         )
         self.memory_entries.append(new_entry)
@@ -247,13 +254,18 @@ class EpisodicMemory(Memory):
         """
         Get the communication history
         """
-        return "\n".join(
-            [
-                f"step {entry.step}: {entry.content['message']}\n\n"
-                for entry in self.memory_entries
-                if "message" in entry.content
-            ]
-        )
+        history = []
+        for entry in self.memory_entries:
+            if "message" in entry.content:
+                messages = entry.content["message"]
+                # Unified structure means message is a list
+                if isinstance(messages, list):
+                    for msg_entry in messages:
+                        msg = msg_entry.get("message", msg_entry)
+                        history.append(f"step {entry.step}: {msg}")
+                else:
+                    history.append(f"step {entry.step}: {messages}")
+        return "\n\n".join(history)
 
     async def aprocess_step(self, pre_step: bool = False):
         """

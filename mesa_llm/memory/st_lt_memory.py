@@ -120,7 +120,14 @@ class STLTMemory(Memory):
         if not self.short_term_memory or self.short_term_memory[-1].step is not None:
             return None, False
         pre_step_entry = self.short_term_memory.pop()
-        self.step_content.update(pre_step_entry.content)
+        
+        # Merge current and pre-step content. Both are dicts of lists.
+        for k, v in pre_step_entry.content.items():
+            if k in self.step_content and isinstance(self.step_content[k], list) and isinstance(v, list):
+                self.step_content[k] = v + self.step_content[k] # Pre-step goes first
+            else:
+                self.step_content[k] = v
+
         new_entry = MemoryEntry(
             agent=self.agent,
             content=self.step_content,
@@ -202,10 +209,15 @@ class STLTMemory(Memory):
         """
         Get the communication history
         """
-        return "\n".join(
-            [
-                f"step {entry.step}: {entry.content['message']}\n\n"
-                for entry in self.short_term_memory
-                if "message" in entry.content
-            ]
-        )
+        history = []
+        for entry in self.short_term_memory:
+            if "message" in entry.content:
+                messages = entry.content["message"]
+                # Unified structure means message is a list
+                if isinstance(messages, list):
+                    for msg_entry in messages:
+                        msg = msg_entry.get("message", msg_entry)
+                        history.append(f"step {entry.step}: {msg}")
+                else:
+                    history.append(f"step {entry.step}: {messages}")
+        return "\n\n".join(history)
