@@ -59,13 +59,11 @@ def test_apply_plan_adds_to_memory(monkeypatch):
 
     assert resp == fake_response
 
-    assert {
-        "tool": "foo",
-        "argument": "bar",
-    } in agent.memory.step_content.values() or agent.memory.step_content == {
-        "tool": "foo",
-        "argument": "bar",
-    }
+    action_content = agent.memory.step_content.get("action")
+    assert action_content is not None
+    assert "tool_calls" in action_content
+    assert len(action_content["tool_calls"]) == 1
+    assert action_content["tool_calls"][0] == {"tool": "foo", "argument": "bar"}
 
 
 def test_generate_obs_with_one_neighbor(monkeypatch):
