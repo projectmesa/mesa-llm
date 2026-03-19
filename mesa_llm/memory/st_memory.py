@@ -64,8 +64,12 @@ class ShortTermMemory(Memory):
             # Merge current and pre-step content. Both are dicts of lists.
             merged_content = dict(self.step_content)
             for k, v in self._current_step_entry.content.items():
-                if k in merged_content and isinstance(merged_content[k], list) and isinstance(v, list):
-                    merged_content[k] = v + merged_content[k] # Pre-step goes first
+                if (
+                    k in merged_content
+                    and isinstance(merged_content[k], list)
+                    and isinstance(v, list)
+                ):
+                    merged_content[k] = v + merged_content[k]  # Pre-step goes first
                 else:
                     merged_content[k] = v
 

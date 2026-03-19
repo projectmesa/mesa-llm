@@ -95,11 +95,17 @@ class LongTermMemory(Memory):
         elif self.buffer and self.buffer.step is None:
             # Merge current and pre-step content. Both are dicts of lists.
             for k, v in self.buffer.content.items():
-                if k in self.step_content and isinstance(self.step_content[k], list) and isinstance(v, list):
-                    self.step_content[k] = v + self.step_content[k] # Pre-step goes first
+                if (
+                    k in self.step_content
+                    and isinstance(self.step_content[k], list)
+                    and isinstance(v, list)
+                ):
+                    self.step_content[k] = (
+                        v + self.step_content[k]
+                    )  # Pre-step goes first
                 else:
                     self.step_content[k] = v
-                    
+
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
@@ -132,11 +138,17 @@ class LongTermMemory(Memory):
         elif self.buffer and self.buffer.step is None:
             # Merge current and pre-step content. Both are dicts of lists.
             for k, v in self.buffer.content.items():
-                if k in self.step_content and isinstance(self.step_content[k], list) and isinstance(v, list):
-                    self.step_content[k] = v + self.step_content[k] # Pre-step goes first
+                if (
+                    k in self.step_content
+                    and isinstance(self.step_content[k], list)
+                    and isinstance(v, list)
+                ):
+                    self.step_content[k] = (
+                        v + self.step_content[k]
+                    )  # Pre-step goes first
                 else:
                     self.step_content[k] = v
-                    
+
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,

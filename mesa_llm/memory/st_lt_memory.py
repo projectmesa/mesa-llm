@@ -120,11 +120,15 @@ class STLTMemory(Memory):
         if not self.short_term_memory or self.short_term_memory[-1].step is not None:
             return None, False
         pre_step_entry = self.short_term_memory.pop()
-        
+
         # Merge current and pre-step content. Both are dicts of lists.
         for k, v in pre_step_entry.content.items():
-            if k in self.step_content and isinstance(self.step_content[k], list) and isinstance(v, list):
-                self.step_content[k] = v + self.step_content[k] # Pre-step goes first
+            if (
+                k in self.step_content
+                and isinstance(self.step_content[k], list)
+                and isinstance(v, list)
+            ):
+                self.step_content[k] = v + self.step_content[k]  # Pre-step goes first
             else:
                 self.step_content[k] = v
 
