@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -9,6 +10,38 @@ from mesa_llm.module_llm import ModuleLLM
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
+
+logger = logging.getLogger(__name__)
+
+
+class MemoryOperationError(Exception):
+    """Custom exception for memory operations failures."""
+
+    def __init__(
+        self, message: str, memory_type: str | None = None, operation: str | None = None
+    ):
+        super().__init__(message)
+        self.memory_type = memory_type
+        self.operation = operation
+
+
+class MemoryCapacityError(MemoryOperationError):
+    """Exception raised when memory capacity limits are exceeded."""
+
+    def __init__(
+        self, message: str, current_size: int | None = None, capacity: int | None = None
+    ):
+        super().__init__(message, memory_type="capacity", operation="add")
+        self.current_size = current_size
+        self.capacity = capacity
+
+
+class MemoryConsolidationError(MemoryOperationError):
+    """Exception raised during memory consolidation operations."""
+
+    def __init__(self, message: str, consolidation_type: str | None = None):
+        super().__init__(message, memory_type="consolidation", operation="consolidate")
+        self.consolidation_type = consolidation_type
 
 
 @dataclass
@@ -155,24 +188,65 @@ class Memory(ABC):
 
     def add_to_memory(self, type: str, content: dict):
         """
-        Add a new entry to the memory
+        Add a new entry to the memory with comprehensive error handling.
         """
-        if not isinstance(content, dict):
-            raise TypeError(
-                "Expected 'content' to be dict, "
-                f"got {content.__class__.__name__}: {content!r}"
-            )
+        try:
+            # Validate inputs
+            if not isinstance(type, str) or not type.strip():
+                raise MemoryOperationError(
+                    "Memory type must be a non-empty string",
+                    memory_type="validation",
+                    operation="add",
+                )
 
-        if type == "observation":
-            # Only store changed parts of observation
-            changed_parts = {
-                k: v for k, v in content.items() if v != self.last_observation.get(k)
-            }
-            if changed_parts:
-                self.step_content[type] = changed_parts
-            self.last_observation = content
-        else:
-            self.step_content[type] = content
+            if not isinstance(content, dict):
+                raise TypeError(
+                    "Expected 'content' to be dict, "
+                    f"got {content.__class__.__name__}: {content!r}"
+                )
+
+            # Validate content structure
+            if not content:
+                logger.warning(f"Empty content provided for memory type '{type}'")
+                return
+
+            # Add memory entry with error isolation
+            try:
+                if type == "observation":
+                    # Only store changed parts of observation
+                    changed_parts = {
+                        k: v
+                        for k, v in content.items()
+                        if v != self.last_observation.get(k)
+                    }
+                    if changed_parts:
+                        self.step_content[type] = changed_parts
+                    self.last_observation = content
+                else:
+                    self.step_content[type] = content
+
+                logger.debug(
+                    f"Successfully added {type} memory entry for agent {self.agent.unique_id}"
+                )
+
+            except Exception as e:
+                raise MemoryOperationError(
+                    f"Failed to add memory entry of type '{type}': {e}",
+                    memory_type="addition",
+                    operation="add",
+                ) from e
+
+        except (MemoryOperationError, TypeError):
+            raise
+        except Exception as e:
+            logger.exception(
+                f"Unexpected error in add_to_memory for agent {self.agent.unique_id}: {e}"
+            )
+            raise MemoryOperationError(
+                f"Unexpected error during memory addition: {e}",
+                memory_type="unexpected",
+                operation="add",
+            ) from e
 
     # Async Function wrapper for add_to_memory()
     async def aadd_to_memory(self, type: str, content: dict):

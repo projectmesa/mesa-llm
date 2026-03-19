@@ -4,6 +4,7 @@ import mesa_llm.tools.inbuilt_tools  # noqa: F401, to register inbuilt tools
 
 from .parallel_stepping import (
     enable_automatic_parallel_stepping,
+    step_agents_multithreaded,
     step_agents_parallel,
     step_agents_parallel_sync,
 )
@@ -16,10 +17,12 @@ enable_automatic_parallel_stepping()
 
 __all__ = [
     "Observation",
+    "PerformanceBenchmark",
     "Plan",
     "ToolManager",
     "enable_automatic_parallel_stepping",
     "record_model",
+    "step_agents_multithreaded",
     "step_agents_parallel",
     "step_agents_parallel_sync",
 ]
