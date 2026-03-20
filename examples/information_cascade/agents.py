@@ -13,7 +13,9 @@ class TraderAgent(LLMAgent):
             reasoning=CoTReasoning,
             system_prompt=(
                 "You are a quantitative trader in a highly volatile market. "
-                "You act purely on market rumors and optimize for survival."
+                "You act purely on market rumors and optimize for survival. "
+                "CRITICAL: You exist purely on a trading network, NOT on a physical grid. "
+                "NEVER use the 'move_one_step' tool. Your ONLY available tool is 'speak_to'."
             ),
         )
 
