@@ -96,18 +96,6 @@ def basic_model():
 
 
 @pytest.fixture
-def grid_model():
-    """Create model with MultiGrid"""
-
-    class GridModel(Model):
-        def __init__(self):
-            super().__init__(rng=42)
-            self.grid = MultiGrid(10, 10, torus=False)
-
-    return GridModel()
-
-
-@pytest.fixture
 def basic_agent(basic_model):
     """Create single agent with memory"""
     agents = LLMAgent.create_agents(basic_model, n=1, vision=0, **DEFAULT_AGENT_CONFIG)
