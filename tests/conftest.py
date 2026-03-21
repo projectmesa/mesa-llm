@@ -98,18 +98,6 @@ def basic_model():
     return Model(rng=42)
 
 
-# @pytest.fixture
-# def grid_model():
-#     """Create model with MultiGrid"""
-
-#     class GridModel(Model):
-#         def __init__(self):
-#             super().__init__(seed=42)
-#             self.grid = MultiGrid(10, 10, torus=False)
-
-
-#     return GridModel()
-# ✅ Replace the grid_model fixture (lines 63-68) with this:
 @pytest.fixture
 def grid_model():
     """Create model with OrthogonalMooreGrid"""
@@ -117,7 +105,9 @@ def grid_model():
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(10, 10, torus=False)    return GridModel()
+            self.grid = OrthogonalMooreGrid((10, 10), torus=False)
+
+    return GridModel()
 
 
 @pytest.fixture

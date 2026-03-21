@@ -44,7 +44,7 @@ class TestCoTReasoning:
         class DummyModel(Model):
             def __init__(self):
                 super().__init__(rng=45)
-                self.grid = MultiGrid(3, 3, torus=False)
+                self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         # Create an LLMAgent with CoTReasoning
         model = DummyModel()

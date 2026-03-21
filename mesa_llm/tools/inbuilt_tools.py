@@ -109,40 +109,25 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         return teleport_to_location(agent, target_coordinates)
 
     space = getattr(agent.model, "space", None)
-    grid_or_space = None
-    if isinstance(grid, SingleGrid | MultiGrid):
-        grid_or_space = grid
-    elif isinstance(space, ContinuousSpace):
-        grid_or_space = space
-
-    if grid_or_space is not None:
+    if isinstance(space, ContinuousSpace):
         dx, dy = direction_map_xy[direction]
         x, y = _get_agent_position(agent)
         new_pos = (x + dx, y + dy)
 
-        if grid_or_space.torus:
-            new_pos = grid_or_space.torus_adj(new_pos)
-        elif grid_or_space.out_of_bounds(new_pos):
+        if space.torus:
+            new_pos = space.torus_adj(new_pos)
+        elif space.out_of_bounds(new_pos):
             return (
                 f"Agent {agent.unique_id} is at the boundary and cannot move "
                 f"{direction}. Try a different direction."
-            )
-
-        if isinstance(grid_or_space, SingleGrid) and not grid_or_space.is_cell_empty(
-            new_pos
-        ):
-            return (
-                f"Agent {agent.unique_id} cannot move {direction} because "
-                "the target cell is occupied."
             )
 
         target_coordinates = tuple(new_pos)
         return teleport_to_location(agent, target_coordinates)
 
     raise ValueError(
-        "Unsupported environment for move_one_step. Expected SingleGrid, "
-        "MultiGrid, OrthogonalMooreGrid, OrthogonalVonNeumannGrid, or "
-        "ContinuousSpace."
+        "Unsupported environment for move_one_step. Expected "
+        "OrthogonalMooreGrid, OrthogonalVonNeumannGrid, or ContinuousSpace."
     )
 
 
@@ -174,8 +159,7 @@ def teleport_to_location(
     else:
         raise ValueError(
             "Unsupported environment for teleport_to_location. Expected "
-            "SingleGrid, MultiGrid, OrthogonalMooreGrid, "
-            "OrthogonalVonNeumannGrid, or ContinuousSpace."
+            "OrthogonalMooreGrid, OrthogonalVonNeumannGrid, or ContinuousSpace."
         )
 
     return f"agent {agent.unique_id} moved to {target_coordinates}."
