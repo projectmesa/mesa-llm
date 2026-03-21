@@ -3,8 +3,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 from litellm import Choices, Message, ModelResponse
+
+# from mesa.space import MultiGrid
 from mesa.model import Model
-from mesa.space import MultiGrid
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_memory import ShortTermMemory
@@ -94,18 +95,6 @@ def llm_response_factory():
 def basic_model():
     """Create basic model without grid"""
     return Model(rng=42)
-
-
-@pytest.fixture
-def grid_model():
-    """Create model with MultiGrid"""
-
-    class GridModel(Model):
-        def __init__(self):
-            super().__init__(rng=42)
-            self.grid = MultiGrid(10, 10, torus=False)
-
-    return GridModel()
 
 
 @pytest.fixture
