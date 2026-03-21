@@ -15,11 +15,28 @@ if TYPE_CHECKING:
 class MemoryEntry:
     """
     A data structure that stores individual memory records with content, step number, and agent reference. Each entry includes `rich` formatting for display. Content is a nested dictionary of arbitrary depth containing the entry's information. Each entry is designed to hold all the information of a given step for an agent, but can also be used to store a single event if needed.
+
+    The agent field stores a weak reference to avoid circular references and
+    to keep entries JSON-friendly when the agent reference is not needed.
     """
 
     content: dict
     step: int | None
     agent: "LLMAgent"
+    agent_id: int | None = None
+
+    def __post_init__(self):
+        """Store the agent's unique_id for serialization-safe access."""
+        if self.agent is not None and self.agent_id is None:
+            self.agent_id = self.agent.unique_id
+
+    def to_dict(self) -> dict:
+        """Return a JSON-serializable representation of this memory entry."""
+        return {
+            "content": self.content,
+            "step": self.step,
+            "agent_id": self.agent_id,
+        }
 
     def __str__(self) -> str:
         """
