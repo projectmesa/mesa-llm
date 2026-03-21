@@ -19,7 +19,7 @@ def test_apply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             system_prompt = "You are an agent in a simulation."
@@ -78,7 +78,7 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = DummyModel()
     agent = LLMAgent.create_agents(
@@ -89,7 +89,7 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
         vision=-1,
         internal_state=["test_state"],
     ).to_list()[0]
-    model.grid.place_agent(agent, (1, 1))
+    agent.cell = model.grid._cells[(1, 1)]
     agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
 
     fake_response = [
@@ -135,7 +135,7 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = DummyModel()
     agent = LLMAgent.create_agents(
@@ -146,7 +146,7 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
         vision=-1,
         internal_state=["test_state"],
     ).to_list()[0]
-    model.grid.place_agent(agent, (1, 1))
+    agent.cell = model.grid._cells[(1, 1)]
     agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
 
     fake_response = [
@@ -190,7 +190,7 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos, agent_class=LLMAgent):
             system_prompt = "You are an agent in a simulation."
@@ -250,7 +250,7 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos, agent_class=LLMAgent):
             system_prompt = "You are an agent in a simulation."
@@ -311,7 +311,7 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             system_prompt = "You are an agent in a simulation."
@@ -362,7 +362,7 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             agents = LLMAgent.create_agents(
@@ -418,7 +418,7 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=1)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
     model = DummyModel()
 
@@ -504,7 +504,7 @@ def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
     model = GridModel()
     agents = LLMAgent.create_agents(
@@ -541,7 +541,7 @@ def test_safer_cell_access_neighbor_without_cell_or_pos(monkeypatch):
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
     model = GridModel()
     agents = LLMAgent.create_agents(
@@ -615,7 +615,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
     class GridModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(10, 10, torus=False)
+            self.grid = OrthogonalMooreGrid((10, 10), torus=False)
 
     model = GridModel()
     agents = LLMAgent.create_agents(
@@ -762,7 +762,7 @@ def test_generate_obs_with_non_llm_neighbor(monkeypatch):
     class MixedModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = MixedModel()
     llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
@@ -803,7 +803,7 @@ async def test_agenerate_obs_with_non_llm_neighbor(monkeypatch):
     class MixedModel(Model):
         def __init__(self):
             super().__init__(rng=42)
-            self.grid = MultiGrid(5, 5, torus=False)
+            self.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     model = MixedModel()
     llm_agent = LLMAgent(model=model, reasoning=ReActReasoning, vision=-1)
@@ -844,7 +844,7 @@ def _make_send_message_model(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
-            self.grid = MultiGrid(3, 3, torus=False)
+            self.grid = OrthogonalMooreGrid((3, 3), torus=False)
 
         def add_agent(self, pos):
             agents = LLMAgent.create_agents(
