@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from examples.sugarscrap_g1mt.agents import (
+from .agents import (
     Resource,
     Trader,
     trader_tool_manager,

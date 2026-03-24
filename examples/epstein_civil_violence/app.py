@@ -9,8 +9,8 @@ from mesa.visualization import (
     make_space_component,
 )
 
-from examples.epstein_civil_violence.agents import Citizen, CitizenState, Cop
-from examples.epstein_civil_violence.model import EpsteinModel
+from .agents import Citizen, CitizenState, Cop
+from .model import EpsteinModel
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.react import ReActReasoning
 

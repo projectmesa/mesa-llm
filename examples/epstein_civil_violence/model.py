@@ -3,7 +3,7 @@ from mesa.model import Model
 from mesa.space import MultiGrid
 from rich import print
 
-from examples.epstein_civil_violence.agents import Citizen, CitizenState, Cop
+from .agents import Citizen, CitizenState, Cop
 from mesa_llm.reasoning.reasoning import Reasoning
 from mesa_llm.recording.record_model import record_model
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     run the model without the solara integration with:
     conda activate mesa-llm && python -m examples.epstein_civil_violence.model
     """
-    from examples.epstein_civil_violence.app import model
+    from .app import model
 
     for _ in range(5):
         model.step()

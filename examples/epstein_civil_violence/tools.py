@@ -1,7 +1,7 @@
 import random
 from typing import TYPE_CHECKING
 
-from examples.epstein_civil_violence.agents import (
+from .agents import (
     CitizenState,
     citizen_tool_manager,
     cop_tool_manager,

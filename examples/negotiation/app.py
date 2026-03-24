@@ -10,8 +10,8 @@ from mesa.visualization import (
     make_space_component,
 )
 
-from examples.negotiation.agents import BuyerAgent, SellerAgent
-from examples.negotiation.model import NegotiationModel
+from .agents import BuyerAgent, SellerAgent
+from .model import NegotiationModel
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.react import ReActReasoning
 

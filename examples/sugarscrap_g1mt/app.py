@@ -9,8 +9,8 @@ from mesa.visualization import (
     make_space_component,
 )
 
-from examples.sugarscrap_g1mt.agents import Resource, Trader
-from examples.sugarscrap_g1mt.model import SugarScapeModel
+from .agents import Resource, Trader
+from .model import SugarScapeModel
 from mesa_llm.reasoning.react import ReActReasoning
 
 # Suppress Pydantic serialization warnings

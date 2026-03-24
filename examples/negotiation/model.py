@@ -5,7 +5,7 @@ from mesa.model import Model
 from mesa.space import MultiGrid
 from rich import print
 
-from examples.negotiation.agents import BuyerAgent, SellerAgent
+from .agents import BuyerAgent, SellerAgent
 from mesa_llm.reasoning.reasoning import Reasoning
 
 
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     conda activate mesa-llm && python -m examples.negotiation.model
     """
 
-    from examples.negotiation.app import model
+    from .app import model
 
     # Run the model for 10 steps
     for _ in range(10):
