@@ -10,10 +10,11 @@ from mesa.visualization import (
     make_space_component,
 )
 
-from .agents import BuyerAgent, SellerAgent
-from .model import NegotiationModel
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.react import ReActReasoning
+
+from .agents import BuyerAgent, SellerAgent
+from .model import NegotiationModel
 
 # Suppress Pydantic serialization warnings
 warnings.filterwarnings(

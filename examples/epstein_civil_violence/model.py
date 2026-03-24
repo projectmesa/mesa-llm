@@ -3,9 +3,10 @@ from mesa.model import Model
 from mesa.space import MultiGrid
 from rich import print
 
-from .agents import Citizen, CitizenState, Cop
 from mesa_llm.reasoning.reasoning import Reasoning
 from mesa_llm.recording.record_model import record_model
+
+from .agents import Citizen, CitizenState, Cop
 
 
 @record_model(output_dir="recordings")

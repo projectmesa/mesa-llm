@@ -5,8 +5,9 @@ from mesa.model import Model
 from mesa.space import MultiGrid
 from rich import print
 
-from .agents import BuyerAgent, SellerAgent
 from mesa_llm.reasoning.reasoning import Reasoning
+
+from .agents import BuyerAgent, SellerAgent
 
 
 # @record_model

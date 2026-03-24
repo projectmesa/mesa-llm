@@ -1,7 +1,8 @@
 from typing import TYPE_CHECKING
 
-from .agents import buyer_tool_manager
 from mesa_llm.tools.tool_decorator import tool
+
+from .agents import buyer_tool_manager
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
