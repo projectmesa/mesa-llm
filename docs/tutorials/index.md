@@ -6,8 +6,8 @@ Step-by-step guides to learn Mesa-LLM by building working models. Start with you
 
 ### [Creating Your First Model](first_model.md)
 
-**Time**: 30 minutes  
-**Prerequisites**: Python basics, Mesa fundamentals  
+**Time**: 30 minutes
+**Prerequisites**: Python basics, Mesa fundamentals
 **You'll learn**:
 
 - How to create a simple LLMAgent
@@ -23,8 +23,8 @@ Step-by-step guides to learn Mesa-LLM by building working models. Start with you
 
 ### [Negotiation Model](negotiation_model_tutorial.md)
 
-**Time**: 1-2 hours  
-**Prerequisites**: First Model tutorial  
+**Time**: 1-2 hours
+**Prerequisites**: First Model tutorial
 **You'll learn**:
 
 - Multi-agent reasoning
