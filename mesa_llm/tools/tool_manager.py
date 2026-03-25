@@ -42,11 +42,26 @@ class ToolManager:
 
     instances: ClassVar[list["ToolManager"]] = []
 
-    def __init__(self, extra_tools: dict[str, Callable] | None = None):
-        # start from everything that was decorated
+    def __init__(
+        self,
+        extra_tools: dict[str, Callable] | None = None,
+        include_builtins: bool = True,
+    ):
+        """
+        Args:
+            extra_tools: additional tool functions to register on this
+                instance (merged on top of globals when *include_builtins*
+                is True, or used as the sole tool set when False).
+            include_builtins: when True (default) the manager starts with
+                every globally-registered tool (move_one_step,
+                teleport_to_location, speak_to, …).  Set to False to
+                create a manager with *only* the tools you explicitly
+                provide via *extra_tools*, preventing capability leakage
+                for agents that should not have spatial or communication
+                tools.
+        """
         ToolManager.instances.append(self)
-        self.tools = dict(_GLOBAL_TOOL_REGISTRY)
-        # allow per-agent overrides / reductions
+        self.tools = dict(_GLOBAL_TOOL_REGISTRY) if include_builtins else {}
         if extra_tools:
             self.tools.update(extra_tools)
 
@@ -100,6 +115,10 @@ class ToolManager:
 
     def has_tool(self, name: str) -> bool:
         return name in self.tools
+
+    def remove_tool(self, name: str):
+        """Remove a tool by name. Silently ignores missing tools."""
+        self.tools.pop(name, None)
 
     async def _process_tool_call(
         self, agent: "LLMAgent", tool_call: Any, index: int

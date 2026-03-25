@@ -60,6 +60,7 @@ class LLMAgent(Agent):
         internal_state: list[str] | str | None = None,
         step_prompt: str | None = None,
         api_base: str | None = None,
+        include_builtin_tools: bool = True,
     ):
         super().__init__(model=model)
 
@@ -77,7 +78,7 @@ class LLMAgent(Agent):
             api_base=api_base,
         )
 
-        self.tool_manager = ToolManager()
+        self.tool_manager = ToolManager(include_builtins=include_builtin_tools)
         self.vision = vision
         self.reasoning = reasoning(agent=self)
         self.system_prompt = system_prompt
