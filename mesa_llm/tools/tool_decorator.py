@@ -317,6 +317,7 @@ def tool(
     *,
     tool_manager: ToolManager | None = None,
     ignore_agent: bool = True,
+    requires: Callable[..., bool] | None = None,
 ):
     """
     Converts Python functions into LLM-compatible tools by automatically generating JSON schemas from type hints and docstrings. Handles parameter validation, type conversion, and integration with the global tool registry. This module automatically extracts parameter descriptions from Google-style docstrings, injects calling agents into functions expecting an `agent` parameter, and integrates with the global tool registry for automatic availability across all ToolManager instances.
@@ -324,6 +325,10 @@ def tool(
     Args:
         fn: The function to decorate.
         tool_manager : the optional tool manager to add the function to
+        requires: an optional predicate ``(agent) -> bool`` that returns
+            True when this tool is usable by the given agent.  Used by
+            ``ToolManager.get_feasible_tools_schema`` to filter out tools
+            whose preconditions are not met.
 
     Returns:
         The decorated function.
@@ -381,6 +386,7 @@ def tool(
         }
 
         func.__tool_schema__ = schema
+        func.__tool_requires__ = requires
 
         if tool_manager:
             tool_manager.register(func)

@@ -92,6 +92,76 @@ class ToolManager:
 
         return [fn.__tool_schema__ for fn in self.tools.values()]
 
+    def _is_tool_feasible(self, fn: Callable, agent: "LLMAgent") -> bool:
+        """Check whether *fn*'s ``__tool_requires__`` predicate passes."""
+        predicate = getattr(fn, "__tool_requires__", None)
+        if predicate is None:
+            return True
+        try:
+            return bool(predicate(agent))
+        except Exception:
+            return False
+
+    def get_feasible_tools_schema(
+        self,
+        agent: "LLMAgent",
+        selected_tools: list[str] | None = None,
+    ) -> list[dict]:
+        """Return schemas only for tools whose preconditions are met.
+
+        Tools decorated with ``@tool(requires=...)`` are checked against
+        the given *agent*.  Tools without a *requires* predicate are
+        always included.
+        """
+        candidates = (
+            {name: self.tools[name] for name in selected_tools if name in self.tools}
+            if selected_tools
+            else self.tools
+        )
+        return [
+            fn.__tool_schema__
+            for fn in candidates.values()
+            if self._is_tool_feasible(fn, agent)
+        ]
+
+    def get_annotated_tools_schema(
+        self,
+        agent: "LLMAgent",
+        selected_tools: list[str] | None = None,
+    ) -> list[dict]:
+        """Return all schemas with an ``available`` annotation.
+
+        Each schema dict gets a top-level ``"available"`` key (bool) and
+        an ``"unavailable_reason"`` key (str or None) so that planners
+        can reason about infeasible tools without losing awareness of
+        their existence.
+        """
+        candidates = (
+            {name: self.tools[name] for name in selected_tools if name in self.tools}
+            if selected_tools
+            else self.tools
+        )
+        result = []
+        for fn in candidates.values():
+            schema = dict(fn.__tool_schema__)
+            predicate = getattr(fn, "__tool_requires__", None)
+            if predicate is None:
+                schema["available"] = True
+                schema["unavailable_reason"] = None
+            else:
+                try:
+                    ok = bool(predicate(agent))
+                except Exception as exc:
+                    ok = False
+                    schema["unavailable_reason"] = str(exc)
+                else:
+                    schema["unavailable_reason"] = (
+                        None if ok else "Precondition not met"
+                    )
+                schema["available"] = ok
+            result.append(schema)
+        return result
+
     def call(self, name: str, arguments: dict) -> str:
         """Call a registered tool with validated args"""
         if name not in self.tools:
