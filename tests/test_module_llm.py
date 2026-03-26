@@ -210,9 +210,7 @@ class TestModuleLLM:
         assert "Model 'gemini/gemini-1.5-pro' was not found." in error_message
         assert "Try 'gemini/gemini-2.0-flash' instead." in error_message
 
-    def test_generate_does_not_retry_non_retryable_quota_exhaustion(
-        self, monkeypatch
-    ):
+    def test_generate_does_not_retry_non_retryable_quota_exhaustion(self, monkeypatch):
         attempts = 0
         original_error = RateLimitError(
             (
