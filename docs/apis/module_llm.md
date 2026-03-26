@@ -10,6 +10,7 @@ In your .env file, set the API key for the LLM provider, then in your python fil
 # .env
 OPENAI_API_KEY=your-api-key
 ANTHROPIC_API_KEY=your-api-key
+GROQ_API_KEY=your-api-key
 ```
 
 ```python
@@ -19,6 +20,12 @@ from mesa_llm.module_llm import ModuleLLM
 # Initialize with specific provider and model
 llm = ModuleLLM(
    llm_model="openai/gpt-4o",
+   system_prompt="You are a helpful simulation agent."
+)
+
+# Groq provider follows the same provider/model pattern
+groq_llm = ModuleLLM(
+   llm_model="groq/llama-3.1-8b-instant",
    system_prompt="You are a helpful simulation agent."
 )
 
@@ -32,7 +39,7 @@ response = llm.generate("What should I do next in this situation?")
 from mesa_llm.tools.tool_manager import ToolManager
 
 tool_manager = ToolManager()
-llm = ModuleLLM(api_key="key", llm_model="openai/gpt-4o")
+llm = ModuleLLM(llm_model="openai/gpt-4o")
 
 # Generate with tool calling
 response = llm.generate(
@@ -87,10 +94,9 @@ decision = AgentDecision.parse_raw(response.choices[0].message.content)
 
 ```python
 class MyAgent(LLMAgent):
-   def __init__(self, model, api_key, **kwargs):
+   def __init__(self, model, **kwargs):
       super().__init__(
             model=model,
-            api_key=api_key,
             llm_model="anthropic/claude-3-sonnet",  # Automatically creates ModuleLLM
             system_prompt="Custom agent behavior instructions",
             **kwargs
