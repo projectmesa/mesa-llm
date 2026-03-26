@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from mesa_llm.model_step import get_model_step
+
 logger = logging.getLogger(__name__)
 
 
@@ -140,13 +142,12 @@ class SimulationRecorder:
         event = SimulationEvent(
             event_id=event_id,
             timestamp=datetime.now(UTC),
-            step=self.model.steps,
+            step=get_model_step(self.model),
             agent_id=agent_id,
             event_type=event_type,
             content=formatted_content,
             metadata=metadata,
         )
-
         self.events.append(event)
         self.events_since_save += 1
 
@@ -220,7 +221,7 @@ class SimulationRecorder:
         self.simulation_metadata.update(
             {
                 "end_time": datetime.now(UTC).isoformat(),
-                "total_steps": self.model.steps,
+                "total_steps": get_model_step(self.model),
                 "total_events": len(self.events),
                 "total_agents": len(self.model.agents),
                 "duration_minutes": (
@@ -233,7 +234,7 @@ class SimulationRecorder:
                     if getattr(self.model, "max_steps", None) is None
                     else (
                         "interrupted"
-                        if self.model.steps < self.model.max_steps
+                        if get_model_step(self.model) < self.model.max_steps
                         else "completed"
                     )
                 ),
@@ -249,11 +250,11 @@ class SimulationRecorder:
                     if getattr(self.model, "max_steps", None) is None
                     else (
                         "interrupted"
-                        if self.model.steps < self.model.max_steps
+                        if get_model_step(self.model) < self.model.max_steps
                         else "completed"
                     )
                 ),
-                "final_step": self.model.steps,
+                "final_step": get_model_step(self.model),
                 "total_events": len(self.events),
             },
         )
@@ -293,7 +294,7 @@ class SimulationRecorder:
             "total_events": len(self.events),
             "unique_agents": len(agent_ids),
             "event_types": list({event.event_type for event in self.events}),
-            "simulation_steps": self.model.steps,
+            "simulation_steps": get_model_step(self.model),
             "recording_duration_minutes": (
                 datetime.now(UTC) - self.start_time
             ).total_seconds()

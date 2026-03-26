@@ -2,6 +2,7 @@ from collections import deque
 from typing import TYPE_CHECKING
 
 from mesa_llm.memory.memory import Memory, MemoryEntry
+from mesa_llm.model_step import get_model_step
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -124,7 +125,7 @@ class STLTMemory(Memory):
         new_entry = MemoryEntry(
             agent=self.agent,
             content=self.step_content,
-            step=self.agent.model.steps,
+            step=get_model_step(self.agent.model),
         )
 
         self.short_term_memory.append(new_entry)

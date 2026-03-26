@@ -12,6 +12,7 @@ from mesa.space import (
 
 from mesa_llm import Plan
 from mesa_llm.memory.st_lt_memory import STLTMemory
+from mesa_llm.model_step import get_model_step
 from mesa_llm.module_llm import ModuleLLM
 from mesa_llm.reasoning.reasoning import (
     Observation,
@@ -227,7 +228,7 @@ class LLMAgent(Agent):
         construction logic, stores it in the agent's memory module using
         async memory operations, and returns it as an Observation instance.
         """
-        step = self.model.steps
+        step = get_model_step(self.model)
         self_state, local_state = self._build_observation()
         await self.memory.aadd_to_memory(
             type="observation",
@@ -245,7 +246,7 @@ class LLMAgent(Agent):
         builder, stores the resulting observation in the agent's memory module,
         and returns it as an Observation instance.
         """
-        step = self.model.steps
+        step = get_model_step(self.model)
         self_state, local_state = self._build_observation()
         # Add to memory (memory handles its own display separately)
         self.memory.add_to_memory(
