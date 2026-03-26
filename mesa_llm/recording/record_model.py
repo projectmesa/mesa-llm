@@ -102,7 +102,9 @@ def record_model(
         def step_wrapper(self: "Model", *args, **kwargs):  # type: ignore[override]
             # Record beginning of step
             if hasattr(self, "recorder"):
-                self.recorder.record_model_event("step_start", {"step": get_model_step(self)})  # type: ignore[attr-defined]
+                self.recorder.record_model_event(
+                    "step_start", {"step": get_model_step(self)}
+                )  # type: ignore[attr-defined]
 
             # Execute the original step logic
             result = original_step(self, *args, **kwargs)  # type: ignore[misc]
@@ -111,7 +113,9 @@ def record_model(
             if hasattr(self, "recorder"):
                 _attach_recorder_to_agents(self, self.recorder)  # type: ignore[attr-defined]
                 # Record end of step after agents have acted
-                self.recorder.record_model_event("step_end", {"step": get_model_step(self)})  # type: ignore[attr-defined]
+                self.recorder.record_model_event(
+                    "step_end", {"step": get_model_step(self)}
+                )  # type: ignore[attr-defined]
 
             return result
 
