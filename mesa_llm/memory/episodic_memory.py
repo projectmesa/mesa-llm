@@ -68,16 +68,26 @@ class EpisodicMemory(Memory):
         max_capacity: int = 200,
         considered_entries: int = 30,
         recency_decay: float = 0.995,
+        api_base: str | None = None,
     ):
         """
-        Initialize the EpisodicMemory
+        Initialize the EpisodicMemory.
+
+        Args:
+            agent : the agent that owns this memory
+            llm_model : the model used to grade event importance
+            display : whether to display memory entries in the console
+            max_capacity : maximum number of finalized episodic entries to keep
+            considered_entries : number of entries to consider during retrieval
+            recency_decay : exponential decay factor for recency scoring
+            api_base : the API base URL to use for the LLM provider
         """
         if not llm_model:
             raise ValueError(
                 "llm_model must be provided for the usage of episodic memory"
             )
 
-        super().__init__(agent, llm_model=llm_model, display=display)
+        super().__init__(agent, llm_model=llm_model, api_base=api_base, display=display)
 
         self.max_capacity = max_capacity
         self.memory_entries = deque(maxlen=self.max_capacity)

@@ -33,6 +33,7 @@ class STLTMemory(Memory):
         consolidation_capacity: int = 2,
         display: bool = True,
         llm_model: str | None = None,
+        api_base: str | None = None,
     ):
         """
         Initialize the memory
@@ -40,6 +41,7 @@ class STLTMemory(Memory):
         Args:
             short_term_capacity : the number of interactions to store in the short term memory
             llm_model : the model to use for the summarization
+            api_base : the API base URL to use for the LLM provider
             agent : the agent that the memory belongs to
         """
         if not llm_model:
@@ -50,6 +52,7 @@ class STLTMemory(Memory):
         super().__init__(
             agent=agent,
             llm_model=llm_model,
+            api_base=api_base,
             display=display,
         )
 

@@ -22,6 +22,7 @@ class LongTermMemory(Memory):
         agent: "LLMAgent",
         display: bool = True,
         llm_model: str = "openai/gpt-4o-mini",
+        api_base: str | None = None,
     ):
         if not llm_model:
             raise ValueError(
@@ -31,6 +32,7 @@ class LongTermMemory(Memory):
         super().__init__(
             agent=agent,
             llm_model=llm_model,
+            api_base=api_base,
             display=display,
         )
 

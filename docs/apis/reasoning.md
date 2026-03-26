@@ -9,10 +9,9 @@ from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.reasoning.cot import CoTReasoning
 
 class MyAgent(LLMAgent):
-   def __init__(self, model, api_key, **kwargs):
+   def __init__(self, model, **kwargs):
       super().__init__(
             model=model,
-            api_key=api_key,
             reasoning=CoTReasoning,  # Specify reasoning strategy
             **kwargs
       )
