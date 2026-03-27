@@ -79,6 +79,19 @@ class ModuleLLM:
                 self.llm_model,
             )
 
+    def __repr__(self) -> str:
+        prompt_preview = (
+            self.system_prompt[:50] + "..."
+            if self.system_prompt and len(self.system_prompt) > 50
+            else self.system_prompt
+        )
+        return (
+            f"ModuleLLM("
+            f"llm_model='{self.llm_model}', "
+            f"api_base={self.api_base!r}, "
+            f"system_prompt={prompt_preview!r})"
+        )
+
     def _build_messages(self, prompt: str | list[str] | None = None) -> list[dict]:
         """
         Format the prompt messages for the LLM of the form : {"role": ..., "content": ...}

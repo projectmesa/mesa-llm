@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from mesa.discrete_space import OrthogonalMooreGrid, OrthogonalVonNeumannGrid
-from mesa.space import ContinuousSpace, MultiGrid, SingleGrid
+from mesa.experimental.continuous_space import ContinuousSpace
 
 from mesa_llm.tools.inbuilt_tools import (
     move_one_step,
@@ -29,11 +29,15 @@ class DummyAgent:
 
 def test_move_one_step_on_singlegrid():
     model = DummyModel()
-    model.grid = SingleGrid(width=5, height=5, torus=False)
+    model.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     agent = DummyAgent(unique_id=1, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (2, 2))
+    cell = model.grid._cells.get((2, 2))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (2, 2)
 
     result = move_one_step(agent, "North")
 
@@ -43,11 +47,15 @@ def test_move_one_step_on_singlegrid():
 
 def test_teleport_to_location_on_multigrid():
     model = DummyModel()
-    model.grid = MultiGrid(width=4, height=4, torus=False)
+    model.grid = OrthogonalMooreGrid((4, 4), torus=False)
 
     agent = DummyAgent(unique_id=7, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (0, 0))
+    cell = model.grid._cells.get((0, 0))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (0, 0)
 
     out = teleport_to_location(agent, [3, 2])
 
@@ -178,11 +186,15 @@ def test_speak_to_records_on_recipients(mocker):
 
 def test_move_one_step_invalid_direction():
     model = DummyModel()
-    model.grid = MultiGrid(width=4, height=4, torus=False)
+    model.grid = OrthogonalMooreGrid((4, 4), torus=False)
 
     agent = DummyAgent(unique_id=3, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (2, 2))
+    cell = model.grid._cells.get((2, 2))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (2, 2)
 
     with pytest.raises(ValueError):
         move_one_step(agent, "north east")
@@ -255,11 +267,11 @@ def test_teleport_to_location_unsupported_non_none_environment():
 def test_teleport_to_location_on_continuousspace():
     model = DummyModel()
     model.grid = None
-    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+    model.space = ContinuousSpace(dimensions=[[0, 10.0], [0, 10.0]], torus=False)
 
     agent = DummyAgent(unique_id=5, model=model)
     model.agents.append(agent)
-    model.space.place_agent(agent, (1.0, 1.0))
+    agent.pos = (1.0, 1.0)
 
     out = teleport_to_location(agent, [5.0, 7.0])
 
@@ -269,13 +281,21 @@ def test_teleport_to_location_on_continuousspace():
 
 def test_teleport_to_location_singlegrid_occupied_target_raises():
     model = DummyModel()
-    model.grid = SingleGrid(width=4, height=4, torus=False)
+    model.grid = OrthogonalMooreGrid((4, 4), torus=False)
 
     moving_agent = DummyAgent(unique_id=34, model=model)
     blocking_agent = DummyAgent(unique_id=35, model=model)
     model.agents.extend([moving_agent, blocking_agent])
-    model.grid.place_agent(moving_agent, (1, 1))
-    model.grid.place_agent(blocking_agent, (1, 2))
+    cell = model.grid._cells.get((1, 1))
+    if cell:
+        cell.add_agent(moving_agent)
+        moving_agent.cell = cell
+        moving_agent.pos = (1, 1)
+    cell = model.grid._cells.get((1, 2))
+    if cell:
+        cell.add_agent(blocking_agent)
+        blocking_agent.cell = cell
+        blocking_agent.pos = (1, 2)
 
     with pytest.raises(Exception, match="Cell not empty"):
         teleport_to_location(moving_agent, [1, 2])
@@ -283,11 +303,15 @@ def test_teleport_to_location_singlegrid_occupied_target_raises():
 
 def test_teleport_to_location_singlegrid_out_of_bounds_raises():
     model = DummyModel()
-    model.grid = SingleGrid(width=4, height=4, torus=False)
+    model.grid = OrthogonalMooreGrid((4, 4), torus=False)
 
     agent = DummyAgent(unique_id=36, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (1, 1))
+    cell = model.grid._cells.get((1, 1))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (1, 1)
 
     with pytest.raises(Exception, match="Point out of bounds"):
         teleport_to_location(agent, [-1, 1])
@@ -319,11 +343,11 @@ def test_move_one_step_on_continuousspace():
     """move_one_step delegates to teleport_to_location, verify it works on ContinuousSpace too."""
     model = DummyModel()
     model.grid = None
-    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+    model.space = ContinuousSpace(dimensions=[[0, 10.0], [0, 10.0]], torus=False)
 
     agent = DummyAgent(unique_id=6, model=model)
     model.agents.append(agent)
-    model.space.place_agent(agent, (2.0, 2.0))
+    agent.pos = (2.0, 2.0)
 
     result = move_one_step(agent, "North")
 
@@ -334,11 +358,11 @@ def test_move_one_step_on_continuousspace():
 def test_move_one_step_boundary_on_continuousspace():
     model = DummyModel()
     model.grid = None
-    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+    model.space = ContinuousSpace(dimensions=[[0, 10.0], [0, 10.0]], torus=False)
 
     agent = DummyAgent(unique_id=30, model=model)
     model.agents.append(agent)
-    model.space.place_agent(agent, (2.0, 9.0))
+    agent.pos = (2.0, 9.0)
 
     result = move_one_step(agent, "North")
 
@@ -350,11 +374,11 @@ def test_move_one_step_boundary_on_continuousspace():
 def test_move_one_step_torus_wrap_on_continuousspace():
     model = DummyModel()
     model.grid = None
-    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=True)
+    model.space = ContinuousSpace(dimensions=[[0, 10.0], [0, 10.0]], torus=True)
 
     agent = DummyAgent(unique_id=31, model=model)
     model.agents.append(agent)
-    model.space.place_agent(agent, (2.0, 9.0))
+    agent.pos = (2.0, 9.0)
 
     result = move_one_step(agent, "North")
 
@@ -365,11 +389,15 @@ def test_move_one_step_torus_wrap_on_continuousspace():
 def test_move_one_step_boundary_singlegrid_north():
     """Agent at top edge of SingleGrid trying to go North gets a clear message."""
     model = DummyModel()
-    model.grid = SingleGrid(width=5, height=5, torus=False)
+    model.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     agent = DummyAgent(unique_id=20, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (2, 4))  # y=4 is the top edge
+    cell = model.grid._cells.get((2, 4))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (2, 4)  # y=4 is the top edge
 
     result = move_one_step(agent, "North")
 
@@ -381,11 +409,15 @@ def test_move_one_step_boundary_singlegrid_north():
 
 def test_move_one_step_torus_wrap_singlegrid_north():
     model = DummyModel()
-    model.grid = SingleGrid(width=5, height=5, torus=True)
+    model.grid = OrthogonalMooreGrid((5, 5), torus=True)
 
     agent = DummyAgent(unique_id=23, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (2, 4))
+    cell = model.grid._cells.get((2, 4))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (2, 4)
 
     result = move_one_step(agent, "North")
 
@@ -396,11 +428,15 @@ def test_move_one_step_torus_wrap_singlegrid_north():
 def test_move_one_step_boundary_multigrid_west():
     """Agent at left edge of MultiGrid trying to go West gets a clear message."""
     model = DummyModel()
-    model.grid = MultiGrid(width=5, height=5, torus=False)
+    model.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     agent = DummyAgent(unique_id=21, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (0, 2))  # x=0 is the left edge
+    cell = model.grid._cells.get((0, 2))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (0, 2)  # x=0 is the left edge
 
     result = move_one_step(agent, "West")
 
@@ -411,11 +447,15 @@ def test_move_one_step_boundary_multigrid_west():
 
 def test_move_one_step_torus_wrap_multigrid_west():
     model = DummyModel()
-    model.grid = MultiGrid(width=5, height=5, torus=True)
+    model.grid = OrthogonalMooreGrid((5, 5), torus=True)
 
     agent = DummyAgent(unique_id=24, model=model)
     model.agents.append(agent)
-    model.grid.place_agent(agent, (0, 2))
+    cell = model.grid._cells.get((0, 2))
+    if cell:
+        cell.add_agent(agent)
+        agent.cell = cell
+        agent.pos = (0, 2)
 
     result = move_one_step(agent, "West")
 
@@ -425,13 +465,21 @@ def test_move_one_step_torus_wrap_multigrid_west():
 
 def test_move_one_step_singlegrid_occupied_target():
     model = DummyModel()
-    model.grid = SingleGrid(width=5, height=5, torus=False)
+    model.grid = OrthogonalMooreGrid((5, 5), torus=False)
 
     moving_agent = DummyAgent(unique_id=25, model=model)
     blocking_agent = DummyAgent(unique_id=26, model=model)
     model.agents.extend([moving_agent, blocking_agent])
-    model.grid.place_agent(moving_agent, (2, 2))
-    model.grid.place_agent(blocking_agent, (2, 3))
+    cell = model.grid._cells.get((2, 2))
+    if cell:
+        cell.add_agent(moving_agent)
+        moving_agent.cell = cell
+        moving_agent.pos = (2, 2)
+    cell = model.grid._cells.get((2, 3))
+    if cell:
+        cell.add_agent(blocking_agent)
+        blocking_agent.cell = cell
+        blocking_agent.pos = (2, 3)
 
     result = move_one_step(moving_agent, "North")
 
