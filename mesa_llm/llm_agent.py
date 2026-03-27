@@ -1,14 +1,13 @@
+import math
+import reprlib
+
 from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
+from mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
-from mesa.space import (
-    ContinuousSpace,
-    MultiGrid,
-    SingleGrid,
-)
 
 from mesa_llm import Plan
 from mesa_llm.memory.st_lt_memory import STLTMemory
@@ -74,12 +73,13 @@ class LLMAgent(Agent):
 
         self.tool_manager = ToolManager()
         self.vision = vision
-        self.reasoning = reasoning(agent=self)
+        self.reasoning_instance = reasoning(agent=self)
+        self.reasoning = reasoning
         self.system_prompt = system_prompt
+        self.llm_model = llm_model
         self.is_speaking = False
-        self._current_plan = None  # Store current plan for formatting
+        self._current_plan = None
 
-        # display coordination
         self._step_display_data = {}
 
         if isinstance(internal_state, str):
@@ -89,8 +89,25 @@ class LLMAgent(Agent):
 
         self.internal_state = internal_state
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"LLMAgent {self.unique_id}"
+
+    def __repr__(self) -> str:
+        memory_size = (
+            len(self.memory.short_term_memory)
+            if hasattr(self.memory, "short_term_memory")
+            else 0
+        )
+        return (
+            f"LLMAgent("
+            f"unique_id={self.unique_id}, "
+            f"llm_model='{self.llm.llm_model}', "
+            f"reasoning={self.reasoning.__name__}, "
+            f"vision={self.vision}, "
+            f"memory_size={memory_size}, "
+            f"internal_state={reprlib.repr(self.internal_state)}"
+            f")"
+        )
 
     async def aapply_plan(self, plan: Plan) -> list[dict]:
         """
@@ -118,15 +135,12 @@ class LLMAgent(Agent):
         """
         Execute the plan in the simulation.
         """
-        # Store current plan for display
         self._current_plan = plan
 
-        # Execute tool calls
         tool_call_resp = self.tool_manager.call_tools(
             agent=self, llm_response=plan.llm_plan
         )
 
-        # Add to memory
         self.memory.add_to_memory(
             type="action",
             content={
@@ -142,30 +156,13 @@ class LLMAgent(Agent):
     def _build_observation(self):
         """
         Construct the observation data visible to the agent at the current model step.
-
-        This method encapsulates the shared logic used by both sync and
-        async observation generation.
-        This method constructs the agent's self state and determines which other
-        agents are observable based on the configured vision:
-
-        - vision > 0:
-            The agent observes all agents within the specified vision radius.
-        - vision == -1:
-            The agent observes all agents present in the simulation.
-        - vision == 0 or vision is None:
-            The agent observes no other agents.
-
-        The method supports grid-based and continuous spaces and builds a local
-        state representation for all visible neighboring agents.
-
-        Returns self_state and local_state of the agent
         """
         self_state = {
             "agent_unique_id": self.unique_id,
             "system_prompt": self.system_prompt,
             "location": (
-                self.pos
-                if self.pos is not None
+                getattr(self, "pos", None)
+                if getattr(self, "pos", None) is not None
                 else (
                     getattr(self, "cell", None).coordinate
                     if getattr(self, "cell", None) is not None
@@ -175,18 +172,10 @@ class LLMAgent(Agent):
             "internal_state": self.internal_state,
         }
         if self.vision is not None and self.vision > 0:
-            # Check which type of space/grid the model uses
             grid = getattr(self.model, "grid", None)
             space = getattr(self.model, "space", None)
 
-            if grid and isinstance(grid, SingleGrid | MultiGrid):
-                neighbors = grid.get_neighbors(
-                    tuple(self.pos),
-                    moore=True,
-                    include_center=False,
-                    radius=self.vision,
-                )
-            elif grid and isinstance(
+            if grid and isinstance(
                 grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
             ):
                 agent_cell = next(
@@ -200,13 +189,19 @@ class LLMAgent(Agent):
                     neighbors = []
 
             elif space and isinstance(space, ContinuousSpace):
-                all_nearby = space.get_neighbors(
-                    self.pos, radius=self.vision, include_center=True
-                )
-                neighbors = [a for a in all_nearby if a is not self]
+                my_pos = getattr(self, "pos", None)
+                if my_pos is not None:
+                    neighbors = [
+                        a
+                        for a in self.model.agents
+                        if a is not self
+                        and getattr(a, "pos", None) is not None
+                        and math.dist(my_pos, a.pos) <= self.vision
+                    ]
+                else:
+                    neighbors = []
 
             else:
-                # No recognized grid/space type
                 neighbors = []
 
         elif self.vision == -1:
@@ -236,11 +231,9 @@ class LLMAgent(Agent):
 
     async def agenerate_obs(self) -> Observation:
         """
-        This method builds the agent's observation using the shared observation
-        construction logic, stores it in the agent's memory module using
-        async memory operations, and returns it as an Observation instance.
+        Async observation generation.
         """
-        step = self.model.steps
+        step = int(self.model._time) if hasattr(self.model, "_time") else 0
         self_state, local_state = self._build_observation()
         await self.memory.aadd_to_memory(
             type="observation",
@@ -254,13 +247,10 @@ class LLMAgent(Agent):
 
     def generate_obs(self) -> Observation:
         """
-        This method delegates observation construction to the shared observation
-        builder, stores the resulting observation in the agent's memory module,
-        and returns it as an Observation instance.
+        Sync observation generation.
         """
-        step = self.model.steps
+        step = int(self.model._time) if hasattr(self.model, "_time") else 0
         self_state, local_state = self._build_observation()
-        # Add to memory (memory handles its own display separately)
         self.memory.add_to_memory(
             type="observation",
             content={
@@ -304,35 +294,20 @@ class LLMAgent(Agent):
         return f"{self} → {recipients} : {message}"
 
     async def apre_step(self):
-        """
-        Asynchronous version of pre_step.
-        """
         await self.memory.aprocess_step(pre_step=True)
 
     async def apost_step(self):
-        """
-        Asynchronous version of post_step.
-        """
         await self.memory.aprocess_step()
 
     def pre_step(self):
-        """
-        This is some code that is executed before the step method of the child agent is called.
-        """
         self.memory.process_step(pre_step=True)
 
     def post_step(self):
-        """
-        This is some code that is executed after the step method of the child agent is called.
-        It functions because of the __init_subclass__ method that creates a wrapper around the step method of the child agent.
-        """
         self.memory.process_step()
 
     async def astep(self):
         """
         Default asynchronous step method for parallel agent execution.
-        Subclasses should override this method for custom async behavior.
-        If not overridden, falls back to calling the synchronous step() method.
         """
         await self.apre_step()
 
@@ -343,19 +318,15 @@ class LLMAgent(Agent):
 
     def __init_subclass__(cls, **kwargs):
         """
-        Wrapper - allows to automatically integrate code to be executed after the step method of the child agent (created by the user) is called.
+        Wrapper - allows to automatically integrate code to be executed after the step method.
         """
         super().__init_subclass__(**kwargs)
-        # only wrap if subclass actually defines its own step
         user_step = cls.__dict__.get("step")
         user_astep = cls.__dict__.get("astep")
 
         if user_step:
 
             def wrapped(self, *args, **kwargs):
-                """
-                This is the wrapper that is used to integrate the pre_step and post_step methods into the step method of the child agent.
-                """
                 LLMAgent.pre_step(self, *args, **kwargs)
                 result = user_step(self, *args, **kwargs)
                 LLMAgent.post_step(self, *args, **kwargs)
@@ -366,9 +337,6 @@ class LLMAgent(Agent):
         if user_astep:
 
             async def awrapped(self, *args, **kwargs):
-                """
-                Async wrapper for astep method.
-                """
                 await self.apre_step()
                 result = await user_astep(self, *args, **kwargs)
                 await self.apost_step()

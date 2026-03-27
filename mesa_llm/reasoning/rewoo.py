@@ -32,6 +32,13 @@ class ReWOOReasoning(Reasoning):
         self.current_plan: Plan | None = None
         self.current_obs: Observation | None = None
 
+    def __repr__(self) -> str:
+        return (
+            f"ReWOOReasoning("
+            f"agent_id={self.agent.unique_id}, "
+            f"remaining_tool_calls={self.remaining_tool_calls})"
+        )
+
     def get_rewoo_system_prompt(self, obs: Observation) -> str:
         memory = getattr(self.agent, "memory", None)
 
