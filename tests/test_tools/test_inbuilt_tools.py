@@ -24,7 +24,38 @@ class DummyAgent:
     def __init__(self, unique_id: int, model: DummyModel):
         self.unique_id = unique_id
         self.model = model
-        self.pos = None
+        self._pos = None
+
+    @property
+    def pos(self):
+        cell = getattr(self, "cell", None)
+        if cell is not None and hasattr(cell, "coordinate"):
+            return cell.coordinate
+        return self._pos
+
+    @pos.setter
+    def pos(self, value):
+        self._pos = value
+
+    def move_to(self, target_coordinates):
+        target_coordinates = tuple(target_coordinates)
+        if hasattr(self.model, "grid") and isinstance(
+            self.model.grid, SingleGrid | MultiGrid
+        ):
+            self.model.grid.move_agent(self, target_coordinates)
+        elif hasattr(self.model, "grid") and isinstance(
+            self.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
+        ):
+            cell = self.model.grid._cells[target_coordinates]
+            self.cell = cell
+        elif hasattr(self.model, "space") and isinstance(
+            self.model.space, ContinuousSpace
+        ):
+            self.model.space.move_agent(self, target_coordinates)
+        else:
+            raise ValueError(
+                f"Unsupported environment for move_to. Model has grid={type(getattr(self.model, 'grid', None))}, space={type(getattr(self.model, 'space', None))}"
+            )
 
 
 def test_move_one_step_on_singlegrid():
@@ -342,6 +373,7 @@ def test_move_one_step_boundary_on_continuousspace():
 
     result = move_one_step(agent, "North")
 
+    # agent should not have moved
     assert agent.pos == (2.0, 9.0)
     assert "boundary" in result.lower()
     assert "North" in result

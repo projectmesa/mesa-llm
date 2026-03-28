@@ -20,6 +20,28 @@ _GLOBAL_TOOL_REGISTRY: dict[str, Callable] = {}
 _TOOL_CALLBACKS: list[Callable[[Callable], None]] = []
 
 
+def requires(precondition: Callable[[Any], bool], reason: str | None = None):
+    """
+    Decorator to specify a precondition for a tool.
+
+    Args:
+        precondition: A function that takes an agent and returns True if the tool
+            is currently feasible for that agent, False otherwise.
+        reason: Optional human-readable explanation of why the tool is currently
+            unavailable. Used for logging and differentiated planning.
+    """
+
+    def decorator(func: Callable):
+        if not hasattr(func, "__tool_requirements__"):
+            func.__tool_requirements__ = []
+        func.__tool_requirements__.append(
+            {"precondition": precondition, "reason": reason}
+        )
+        return func
+
+    return decorator
+
+
 def add_tool_callback(callback: Callable[[Callable], None]):
     """Add a callback to be called when a new tool is registered"""
     _TOOL_CALLBACKS.append(callback)
@@ -91,6 +113,27 @@ def _python_to_json_type(py_type: Any) -> dict[str, Any]:
                                 "type": "array",
                                 "items": _python_to_json_type(item_type),
                             }
+                    elif base is dict:
+                        # Handle dict[str, int]
+                        if "," in inner_content:
+                            parts = inner_content.split(",")
+                            if len(parts) >= 2:
+                                value_type_str = parts[1].strip()
+                                # We assume key is string for LLM tools
+                                type_mapping = {
+                                    "int": int,
+                                    "str": str,
+                                    "float": float,
+                                    "bool": bool,
+                                }
+                                value_type = type_mapping.get(value_type_str, str)
+                                return {
+                                    "type": "object",
+                                    "additionalProperties": _python_to_json_type(
+                                        value_type
+                                    ),
+                                }
+                        return {"type": "object"}
 
             # Try to get the base type for simple cases
             base_type = py_type.split("[")[0].strip()
@@ -105,6 +148,10 @@ def _python_to_json_type(py_type: Any) -> dict[str, Any]:
             }
             if base_type in type_mapping:
                 py_type = type_mapping[base_type]
+            else:
+                # If it's a string that doesn't match any known basic type,
+                # we default to string as per standard LLM tool practices.
+                return {"type": "string"}
 
         except Exception:
             # If parsing fails, default to string

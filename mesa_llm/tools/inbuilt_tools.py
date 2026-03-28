@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
@@ -10,7 +10,7 @@ from mesa.space import (
     SingleGrid,
 )
 
-from mesa_llm.tools.tool_decorator import tool
+from mesa_llm.tools.tool_decorator import requires, tool
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -41,26 +41,18 @@ direction_map_row_col = {
 }
 
 
-def _get_agent_position(agent: "LLMAgent") -> Any:
-    """Return the agent position across Mesa space APIs."""
-    cell = getattr(agent, "cell", None)
-    if cell is not None and getattr(cell, "coordinate", None) is not None:
-        return cell.coordinate
-
-    pos = getattr(agent, "pos", None)
-    if pos is not None:
-        return pos
-
-    position = getattr(agent, "position", None)
-    if position is not None:
-        return position
-
-    raise ValueError(
-        "Could not infer agent position from `cell`, `pos`, or `position`."
-    )
-
-
 @tool
+@requires(
+    lambda agent: agent.pos is not None,
+    reason="Agent has no position",
+)
+@requires(
+    lambda agent: (
+        getattr(agent.model, "grid", None) is not None
+        or getattr(agent.model, "space", None) is not None
+    ),
+    reason="Model has no grid or space",
+)
 def move_one_step(agent: "LLMAgent", direction: str) -> str:
     """
     Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including SingleGrid, MultiGrid, OrthogonalGrids, and ContinuousSpace.
@@ -82,7 +74,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
 
     grid = getattr(agent.model, "grid", None)
     if isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
-        row, col = _get_agent_position(agent)
+        row, col = agent.pos
         drow, dcol = direction_map_row_col[direction]
         new_pos = (row + drow, col + dcol)
 
@@ -121,7 +113,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
 
     if grid_or_space is not None:
         dx, dy = direction_map_xy[direction]
-        x, y = _get_agent_position(agent)
+        x, y = agent.pos
         new_pos = (x + dx, y + dy)
 
         if grid_or_space.torus:
@@ -151,6 +143,13 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
 
 
 @tool
+@requires(
+    lambda agent: (
+        getattr(agent.model, "grid", None) is not None
+        or getattr(agent.model, "space", None) is not None
+    ),
+    reason="Model has no grid or space",
+)
 def teleport_to_location(
     agent: "LLMAgent",
     target_coordinates: list[int | float],
@@ -167,24 +166,7 @@ def teleport_to_location(
 
     """
     target_coordinates = tuple(target_coordinates)
-
-    if isinstance(agent.model.grid, SingleGrid | MultiGrid):
-        agent.model.grid.move_agent(agent, target_coordinates)
-
-    elif isinstance(agent.model.grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
-        cell = agent.model.grid._cells[target_coordinates]
-        agent.cell = cell
-
-    elif isinstance(agent.model.space, ContinuousSpace):
-        agent.model.space.move_agent(agent, target_coordinates)
-
-    else:
-        raise ValueError(
-            "Unsupported environment for teleport_to_location. Expected "
-            "SingleGrid, MultiGrid, OrthogonalMooreGrid, "
-            "OrthogonalVonNeumannGrid, or ContinuousSpace."
-        )
-
+    agent.move_to(target_coordinates)
     return f"agent {agent.unique_id} moved to {target_coordinates}."
 
 

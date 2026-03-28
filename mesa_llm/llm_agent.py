@@ -1,3 +1,5 @@
+from typing import Any
+
 from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
@@ -89,6 +91,48 @@ class LLMAgent(Agent):
 
         self.internal_state = internal_state
 
+    @property
+    def pos(self) -> Any:
+        """Standardized access to the agent's position across all Mesa space types."""
+        # Check for discrete_space Cell
+        cell = getattr(self, "cell", None)
+        if cell is not None and hasattr(cell, "coordinate"):
+            return cell.coordinate
+        # Fall back to legacy Agent.pos (stored in __dict__ by our setter)
+        return self.__dict__.get("pos")
+
+    @pos.setter
+    def pos(self, value: Any):
+        """Standardized setter for agent position."""
+        # For discrete_space, updating agent.cell is the primary way.
+        # If we are setting pos directly, we try to maintain legacy compatibility.
+        curr_cell = getattr(self, "cell", None)
+        if curr_cell is not None and value is None:
+            # Setting pos to None (e.g. during removal) should also clear cell
+            self.cell = None
+
+        # Always update the underlying attribute for legacy compatibility.
+        # We use __dict__ because Agent.pos is a simple attribute, not a property,
+        # so super().pos.fset won't work, and self.pos = value would recurse.
+        self.__dict__["pos"] = value
+
+    def move_to(self, target_coordinates: Any):
+        """Standardized movement method for all Mesa space types."""
+        grid = getattr(self.model, "grid", None)
+        space = getattr(self.model, "space", None)
+
+        if isinstance(grid, SingleGrid | MultiGrid):
+            grid.move_agent(self, target_coordinates)
+        elif isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+            cell = grid._cells[tuple(target_coordinates)]
+            self.cell = cell
+        elif isinstance(space, ContinuousSpace):
+            space.move_agent(self, target_coordinates)
+        else:
+            raise ValueError(
+                f"Unsupported environment for move_to. Model has grid={type(grid)}, space={type(space)}"
+            )
+
     def __str__(self):
         return f"LLMAgent {self.unique_id}"
 
@@ -163,15 +207,7 @@ class LLMAgent(Agent):
         self_state = {
             "agent_unique_id": self.unique_id,
             "system_prompt": self.system_prompt,
-            "location": (
-                self.pos
-                if self.pos is not None
-                else (
-                    getattr(self, "cell", None).coordinate
-                    if getattr(self, "cell", None) is not None
-                    else None
-                )
-            ),
+            "location": self.pos,
             "internal_state": self.internal_state,
         }
         if self.vision is not None and self.vision > 0:
@@ -218,16 +254,19 @@ class LLMAgent(Agent):
 
         local_state = {}
         for i in neighbors:
+            # Use i.pos which redirects correctly if the neighbor is also an LLMAgent
+            # or use the same logic if it's a standard Agent
+            neighbor_pos = (
+                i.pos
+                if i.pos is not None
+                else (
+                    getattr(i, "cell", None).coordinate
+                    if getattr(i, "cell", None) is not None
+                    else None
+                )
+            )
             local_state[i.__class__.__name__ + " " + str(i.unique_id)] = {
-                "position": (
-                    i.pos
-                    if i.pos is not None
-                    else (
-                        getattr(i, "cell", None).coordinate
-                        if getattr(i, "cell", None) is not None
-                        else None
-                    )
-                ),
+                "position": neighbor_pos,
                 "internal_state": [
                     s for s in getattr(i, "internal_state", []) if not s.startswith("_")
                 ],
