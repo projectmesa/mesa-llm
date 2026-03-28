@@ -66,6 +66,58 @@ def test_apply_plan_adds_to_memory(monkeypatch):
     assert len(action_content["tool_calls"]) == 1
     assert action_content["tool_calls"][0] == {"tool": "foo", "argument": "bar"}
 
+    # ── Shared helpers ────────────────────────────────────────────────────────────
+
+
+def _make_agent(model, vision=0, internal_state=None):
+    """Helper: create one LLMAgent and attach fresh ShortTermMemory."""
+    agents = LLMAgent.create_agents(
+        model,
+        n=1,
+        reasoning=ReActReasoning,
+        system_prompt="Test",
+        vision=vision,
+        internal_state=internal_state or ["test"],
+    )
+    agent = agents.to_list()[0]
+    agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
+    return agent
+
+
+def _make_send_message_model(monkeypatch):
+    """Two-agent MultiGrid model with ShortTermMemory for message tests."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=45)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+        def add_agent(self, pos):
+            agents = LLMAgent.create_agents(
+                self,
+                n=1,
+                reasoning=lambda agent: None,
+                system_prompt="Test",
+                vision=-1,
+                internal_state=[],
+            )
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, pos)
+            return agent
+
+    model = DummyModel()
+
+    sender = model.add_agent((0, 0))
+    sender.memory = ShortTermMemory(agent=sender, n=5, display=True)
+    sender.unique_id = 10
+
+    recipient = model.add_agent((1, 1))
+    recipient.memory = ShortTermMemory(agent=recipient, n=5, display=True)
+    recipient.unique_id = 20
+
+    return sender, recipient
+
 
 def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
     """All tool call results must be preserved when the LLM returns >1 tool call."""
@@ -183,6 +235,8 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
 
 
 def test_generate_obs_with_one_neighbor(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
@@ -239,6 +293,8 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
 
 
 def test_send_message_updates_both_agents_memory(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
@@ -296,6 +352,8 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_aapply_plan_adds_to_memory(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=42)
@@ -343,6 +401,8 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agenerate_obs_with_one_neighbor(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
     class DummyModel(Model):
         def __init__(self):
             super().__init__(rng=45)
@@ -390,6 +450,8 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_async_wrapper_calls_pre_and_post(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
     class CustomAgent(LLMAgent):
         async def astep(self):
             self.user_called = True
@@ -453,6 +515,7 @@ def _make_agent(model, vision=0, internal_state=None):
 
 def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
     """Agent location falls back to cell.coordinate when pos=None."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
     model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
@@ -466,6 +529,7 @@ def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
 
 def test_safer_cell_access_agent_without_cell_or_pos(monkeypatch):
     """Agent location returns None gracefully when neither pos nor cell exists."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
     model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
@@ -480,6 +544,7 @@ def test_safer_cell_access_agent_without_cell_or_pos(monkeypatch):
 
 def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
     """Neighbor position uses cell.coordinate when neighbor.pos=None."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
 
     class GridModel(Model):
         def __init__(self):
@@ -583,6 +648,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
 
 def test_generate_obs_vision_all_agents(monkeypatch):
     """vision=-1 returns all other agents regardless of position."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
 
     class GridModel(Model):
         def __init__(self):
@@ -616,6 +682,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
 
 def test_generate_obs_no_grid_with_vision(monkeypatch):
     """When the model has no grid/space, generate_obs falls back to empty neighbors."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
     model = Model(rng=42)  # no grid, no space
     agents = LLMAgent.create_agents(
         model,
@@ -645,6 +712,7 @@ def test_generate_obs_standard_grid_with_vision_radius(monkeypatch):
     - The observation includes nearby agents in local_state.
     - The SingleGrid neighbor lookup branch is executed.
     """
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
 
     class GridModel(Model):
         def __init__(self):
@@ -680,6 +748,7 @@ def test_generate_obs_orthogonal_grid_branches(monkeypatch):
     Covers Orthogonal grid-specific branches including
     cell-based lookup and fallback behavior.
     """
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
 
     class OrthoModel(Model):
         def __init__(self):
