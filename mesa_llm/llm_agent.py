@@ -3,12 +3,8 @@ from mesa.discrete_space import (
     OrthogonalMooreGrid,
     OrthogonalVonNeumannGrid,
 )
+from mesa.experimental.continuous_space import ContinuousSpace
 from mesa.model import Model
-from mesa.space import (
-    ContinuousSpace,
-    MultiGrid,
-    SingleGrid,
-)
 
 from mesa_llm import Plan
 from mesa_llm.memory.st_lt_memory import STLTMemory
@@ -179,7 +175,7 @@ class LLMAgent(Agent):
             grid = getattr(self.model, "grid", None)
             space = getattr(self.model, "space", None)
 
-            if grid and isinstance(grid, SingleGrid | MultiGrid):
+            if grid and isinstance(grid, ContinuousSpace):
                 neighbors = grid.get_neighbors(
                     tuple(self.pos),
                     moore=True,
@@ -240,7 +236,7 @@ class LLMAgent(Agent):
         construction logic, stores it in the agent's memory module using
         async memory operations, and returns it as an Observation instance.
         """
-        step = self.model.steps
+        step = int(self.model._time)
         self_state, local_state = self._build_observation()
         await self.memory.aadd_to_memory(
             type="observation",
@@ -258,7 +254,7 @@ class LLMAgent(Agent):
         builder, stores the resulting observation in the agent's memory module,
         and returns it as an Observation instance.
         """
-        step = self.model.steps
+        step = int(self.model._time)
         self_state, local_state = self._build_observation()
         # Add to memory (memory handles its own display separately)
         self.memory.add_to_memory(

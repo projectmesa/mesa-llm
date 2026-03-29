@@ -26,13 +26,23 @@ class ReWOOReasoning(Reasoning):
         - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan with ReWOO reasoning
     """
 
-    def __init__(self, agent: "LLMAgent"):
+    def __init__(self, agent: "LLMAgent") -> None:
         super().__init__(agent=agent)
-        self.remaining_tool_calls = 0  # Initialize remaining tool calls
+        self.remaining_tool_calls: int = 0
         self.current_plan: Plan | None = None
         self.current_obs: Observation | None = None
 
     def get_rewoo_system_prompt(self, obs: Observation) -> str:
+        """
+        Build the ReWOO system prompt incorporating memory and the current observation,
+        instructing the agent to create a multi-step plan without re-observing.
+
+        Args:
+            obs (Observation): The agent's current observation.
+
+        Returns:
+            str: The formatted system prompt for ReWOO reasoning.
+        """
         memory = getattr(self.agent, "memory", None)
 
         long_term_memory = ""
@@ -108,6 +118,15 @@ class ReWOOReasoning(Reasoning):
     ) -> Plan:
         """
         Plan the next (ReWOO) action based on the current observation and the agent's memory.
+
+        Args:
+            prompt (str | None): Optional user prompt. Falls back to agent.step_prompt if None.
+            obs (Observation | None): Optional observation. Generated fresh if None.
+            ttl (int): Time-to-live for the returned plan.
+            selected_tools (list[str] | None): Optional list of tool names to restrict to.
+
+        Returns:
+            Plan: The ReWOO-generated plan ready for execution.
         """
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
@@ -168,6 +187,15 @@ class ReWOOReasoning(Reasoning):
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
+
+        Args:
+            prompt (str | None): Optional user prompt. Falls back to agent.step_prompt if None.
+            obs (Observation | None): Optional observation. Generated fresh if None.
+            ttl (int): Time-to-live for the returned plan.
+            selected_tools (list[str] | None): Optional list of tool names to restrict to.
+
+        Returns:
+            Plan: The ReWOO-generated plan ready for execution.
         """
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:

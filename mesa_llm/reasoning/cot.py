@@ -25,10 +25,20 @@ class CoTReasoning(Reasoning):
         Action: [The action you decide to take]
     """
 
-    def __init__(self, agent: "LLMAgent"):
+    def __init__(self, agent: "LLMAgent") -> None:
         super().__init__(agent=agent)
 
     def get_cot_system_prompt(self, obs: Observation) -> str:
+        """
+        Build the Chain-of-Thought system prompt incorporating long-term memory,
+        short-term memory, and the current observation.
+
+        Args:
+            obs (Observation): The agent's current observation.
+
+        Returns:
+            str: The formatted system prompt for CoT reasoning.
+        """
         memory = getattr(self.agent, "memory", None)
         long_term_memory = ""
         if (
@@ -94,6 +104,15 @@ class CoTReasoning(Reasoning):
     ) -> Plan:
         """
         Plan the next (CoT) action based on the current observation and the agent's memory.
+
+        Args:
+            prompt (str | None): Optional user prompt. Falls back to agent.step_prompt if None.
+            obs (Observation | None): Optional observation. Generated fresh if None.
+            ttl (int): Time-to-live for the returned plan.
+            selected_tools (list[str] | None): Optional list of tool names to restrict to.
+
+        Returns:
+            Plan: The CoT-generated plan ready for execution.
         """
         # If no prompt is provided, use the agent's default step prompt
         if prompt is None:
@@ -155,6 +174,15 @@ class CoTReasoning(Reasoning):
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
+
+        Args:
+            prompt (str | None): Optional user prompt. Falls back to agent.step_prompt if None.
+            obs (Observation | None): Optional observation. Generated fresh if None.
+            ttl (int): Time-to-live for the returned plan.
+            selected_tools (list[str] | None): Optional list of tool names to restrict to.
+
+        Returns:
+            Plan: The CoT-generated plan ready for execution.
         """
         # If no prompt is provided, use the agent's default step prompt
         if prompt is None:
