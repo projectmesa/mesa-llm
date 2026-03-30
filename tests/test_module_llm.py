@@ -2,7 +2,7 @@ import os
 from unittest.mock import patch
 
 import pytest
-from litellm.exceptions import RateLimitError
+from litellm.exceptions import RateLimitError, Timeout
 
 from mesa_llm.module_llm import ModuleLLM
 
@@ -119,9 +119,9 @@ class TestModuleLLM:
 
         monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_rate_limit)
 
-        llm = ModuleLLM(llm_model="openai/gpt-4o")
+        llm = ModuleLLM(llm_model="openai/gpt-4o", max_retries=1)
         with pytest.raises(RateLimitError) as exc_info:
-            ModuleLLM.generate.__wrapped__(llm, prompt="Hello, how are you?")
+            llm.generate(prompt="Hello, how are you?")
 
         assert str(exc_info.value) == (
             "litellm.RateLimitError: Rate limit exceeded for model "
@@ -144,9 +144,9 @@ class TestModuleLLM:
 
         monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_rate_limit)
 
-        llm = ModuleLLM(llm_model="gemini/gemini-2.0-flash")
+        llm = ModuleLLM(llm_model="gemini/gemini-2.0-flash", max_retries=1)
         with pytest.raises(RateLimitError) as exc_info:
-            ModuleLLM.generate.__wrapped__(llm, prompt="Hello, how are you?")
+            llm.generate(prompt="Hello, how are you?")
 
         assert str(exc_info.value) == (
             "litellm.RateLimitError: Rate limit exceeded for model "
@@ -156,6 +156,22 @@ class TestModuleLLM:
             "https://ai.google.dev/gemini-api/docs/rate-limits LiteLLM Retried: "
             "3 times, LiteLLM Max Retries: 5"
         )
+
+    def test_generate_stops_after_max_retries(self, monkeypatch):
+        """Verify generate() raises after max_retries attempts, not indefinitely."""
+        call_count = {"n": 0}
+
+        def _raise_timeout(**kwargs):
+            call_count["n"] += 1
+            raise Timeout("timeout", "openai", "openai/gpt-4o")
+
+        monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_timeout)
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o", max_retries=3)
+        with pytest.raises(Timeout):
+            llm.generate(prompt="Hello")
+
+        assert call_count["n"] == 3
 
     @pytest.mark.asyncio
     async def test_agenerate(self, monkeypatch, llm_response_factory):

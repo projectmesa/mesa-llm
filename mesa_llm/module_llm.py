@@ -8,7 +8,13 @@ from litellm.exceptions import (
     RateLimitError,
     Timeout,
 )
-from tenacity import AsyncRetrying, retry, retry_if_exception_type, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    Retrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 RETRYABLE_EXCEPTIONS = (
     APIConnectionError,
@@ -32,6 +38,7 @@ class ModuleLLM:
         llm_model: str,
         api_base: str | None = None,
         system_prompt: str | None = None,
+        max_retries: int = 5,
     ):
         """
         Initialize the LLM module
@@ -41,6 +48,9 @@ class ModuleLLM:
                 "{provider}/{model}" (for example, "openai/gpt-4o").
             api_base: The API base to use if the LLM provider is Ollama
             system_prompt: The system prompt to use for the LLM
+            max_retries: Maximum number of retry attempts on transient errors
+                (APIConnectionError, Timeout, RateLimitError). Defaults to 5.
+                Set to 1 to disable retries.
 
         Raises:
             ValueError: If llm_model is not in the expected "{provider}/{model}"
@@ -49,6 +59,7 @@ class ModuleLLM:
         self.api_base = api_base
         self.llm_model = llm_model
         self.system_prompt = system_prompt
+        self.max_retries = max_retries
 
         if "/" not in llm_model:
             raise ValueError(
@@ -136,11 +147,6 @@ class ModuleLLM:
             num_retries=error.num_retries,
         )
 
-    @retry(
-        wait=wait_exponential(multiplier=1, min=1, max=60),
-        retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
-        reraise=True,
-    )
     def generate(
         self,
         prompt: str | list[str] | None = None,
@@ -149,7 +155,10 @@ class ModuleLLM:
         response_format: dict | object | None = None,
     ) -> str:
         """
-        Generate a response from the LLM using litellm based on the prompt
+        Generate a response from the LLM using litellm based on the prompt.
+
+        Retries transient errors (APIConnectionError, Timeout, RateLimitError)
+        up to ``self.max_retries`` times with exponential backoff.
 
         Args:
             prompt: The prompt to generate a response for (str, list of strings, or None)
@@ -160,7 +169,6 @@ class ModuleLLM:
         Returns:
             The response from the LLM
         """
-
         messages = self._build_messages(prompt)
 
         completion_kwargs = {
@@ -173,10 +181,17 @@ class ModuleLLM:
         if self.api_base:
             completion_kwargs["api_base"] = self.api_base
 
-        try:
-            response = completion(**completion_kwargs)
-        except RateLimitError as error:
-            raise self._build_rate_limit_error(error) from error
+        for attempt in Retrying(
+            wait=wait_exponential(multiplier=1, min=1, max=60),
+            retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+            stop=stop_after_attempt(self.max_retries),
+            reraise=True,
+        ):
+            with attempt:
+                try:
+                    response = completion(**completion_kwargs)
+                except RateLimitError as error:
+                    raise self._build_rate_limit_error(error) from error
 
         return response
 
@@ -194,6 +209,7 @@ class ModuleLLM:
         async for attempt in AsyncRetrying(
             wait=wait_exponential(multiplier=1, min=1, max=60),
             retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+            stop=stop_after_attempt(self.max_retries),
             reraise=True,
         ):
             with attempt:
