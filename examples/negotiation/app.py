@@ -42,6 +42,7 @@ model_params = {
     "reasoning": ReActReasoning,
     "llm_model": "openai/gpt-4o",
     "vision": 5,
+    "api_base": None,
 }
 
 
@@ -52,6 +53,7 @@ model = NegotiationModel(
     reasoning=model_params["reasoning"],
     llm_model=model_params["llm_model"],
     vision=model_params["vision"],
+    api_base=model_params["api_base"],
     seed=model_params["seed"]["value"],
 )
 

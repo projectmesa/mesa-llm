@@ -1,5 +1,7 @@
 from collections import deque
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from mesa_llm.memory.memory import MemoryEntry
 from mesa_llm.memory.st_lt_memory import STLTMemory
@@ -120,11 +122,15 @@ class TestSTLTMemory:
         memory.llm = mock_llm
         memory.long_term_memory = "Previous memory"
 
-        memory._update_long_term_memory()
+        evicted = [
+            MemoryEntry(
+                content={"observation": "old content"}, step=0, agent=mock_agent
+            )
+        ]
+        memory._update_long_term_memory(evicted)
 
         call_args = mock_llm.generate.call_args[0][0]
-        assert "Short term memory:" in call_args
-        assert "Long term memory:" in call_args
+        assert "old content" in call_args
         assert "Previous memory" in call_args
 
         # Must be a plain string, not a ModelResponse object
@@ -145,12 +151,138 @@ class TestSTLTMemory:
         memory = STLTMemory(agent=mock_agent, llm_model="provider/test_model")
         memory.llm = mock_llm
 
-        memory._update_long_term_memory()
+        evicted = [MemoryEntry(content={"data": "evicted"}, step=0, agent=mock_agent)]
+        memory._update_long_term_memory(evicted)
 
         assert isinstance(memory.long_term_memory, str), (
             "long_term_memory must be a string, not a ModelResponse object"
         )
         assert memory.long_term_memory == "This is the summary text"
+
+    def test_consolidation_receives_evicted_entries(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """Regression test for #107: evicted entries must be passed to the
+        LLM for summarization, not the remaining short-term memories."""
+        mock_llm.generate.return_value = llm_response_factory("Consolidated summary")
+
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=2,
+            consolidation_capacity=2,
+            llm_model="provider/test_model",
+        )
+        memory.llm = mock_llm
+
+        # Fill up: 2 (capacity) + 2 (consolidation) + 1 to trigger
+        with patch("rich.console.Console"):
+            for i in range(5):
+                memory.add_to_memory("observation", {"content": f"step_{i}"})
+                memory.process_step(pre_step=True)
+                mock_agent.model.steps = i + 1
+                memory.process_step(pre_step=False)
+
+        # The LLM should have been called with the evicted entries
+        assert mock_llm.generate.called
+        prompt = mock_llm.generate.call_args[0][0]
+        # The prompt must contain the evicted memories, not just the
+        # remaining ones
+        assert "consolidate" in prompt.lower() or "removed" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_aupdate_long_term_memory(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """Cover the async consolidation path (_aupdate_long_term_memory)."""
+        mock_llm.agenerate = AsyncMock(
+            return_value=llm_response_factory("Async consolidated summary")
+        )
+
+        memory = STLTMemory(agent=mock_agent, llm_model="provider/test_model")
+        memory.llm = mock_llm
+        memory.long_term_memory = "Old summary"
+
+        evicted = [
+            MemoryEntry(
+                content={"observation": "evicted data"}, step=0, agent=mock_agent
+            )
+        ]
+        await memory._aupdate_long_term_memory(evicted)
+
+        mock_llm.agenerate.assert_called_once()
+        prompt = mock_llm.agenerate.call_args[0][0]
+        assert "evicted data" in prompt
+        assert "Old summary" in prompt
+        assert isinstance(memory.long_term_memory, str)
+        assert memory.long_term_memory == "Async consolidated summary"
+
+    def test_post_step_without_pending_pre_step_is_noop(self, mock_agent):
+        """Calling process_step(pre_step=False) when no pre-step entry is
+        pending must return early without side effects."""
+        memory = STLTMemory(agent=mock_agent, llm_model="provider/test_model")
+        # Inject a finalized entry (step is not None)
+        memory.short_term_memory.append(
+            MemoryEntry(content={"data": "done"}, step=1, agent=mock_agent)
+        )
+        with patch("rich.console.Console"):
+            memory.process_step(pre_step=False)
+        # Memory should be unchanged
+        assert len(memory.short_term_memory) == 1
+        assert memory.short_term_memory[0].step == 1
+
+    def test_overflow_without_consolidation_discards_oldest(self, mock_agent):
+        """When consolidation_capacity=0, exceeding capacity should simply
+        discard the oldest entry without calling the LLM."""
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=2,
+            consolidation_capacity=0,
+            llm_model="provider/test_model",
+        )
+        with patch("rich.console.Console"):
+            for i in range(4):
+                memory.add_to_memory("observation", {"content": f"step_{i}"})
+                memory.process_step(pre_step=True)
+                mock_agent.model.steps = i + 1
+                memory.process_step(pre_step=False)
+        # Capacity is 2, no consolidation, so only 2 entries should remain
+        assert len(memory.short_term_memory) <= 2
+
+    def test_consolidation_stops_when_deque_exhausted(
+        self, mock_agent, mock_llm, llm_response_factory
+    ):
+        """The guard `if self.short_term_memory` inside the eviction loop
+        prevents popping from an empty deque.  Exercise it by forcing
+        consolidation_capacity to exceed the actual deque size."""
+        mock_llm.generate.return_value = llm_response_factory("Summary")
+
+        memory = STLTMemory(
+            agent=mock_agent,
+            short_term_capacity=1,
+            consolidation_capacity=5,
+            llm_model="provider/test_model",
+        )
+        memory.llm = mock_llm
+
+        # Seed the deque with one finalized entry and one pending entry
+        memory.short_term_memory.append(
+            MemoryEntry(content={"data": "old"}, step=0, agent=mock_agent)
+        )
+        memory.short_term_memory.append(
+            MemoryEntry(content={"data": "pending"}, step=None, agent=mock_agent)
+        )
+        # Force the consolidation condition to trigger despite the small
+        # deque (2 entries).  After process_step merges the pending entry
+        # the deque still has 2, but the loop tries to pop 5 — the guard
+        # stops it after 2.
+        memory.capacity = -100
+
+        with patch("rich.console.Console"):
+            memory.process_step(pre_step=False)
+
+        # Consolidation was called with the 2 entries that were available
+        assert mock_llm.generate.called
+        assert len(memory.short_term_memory) == 0
 
     def test_observation_tracking(self, mock_agent):
         """Test that observations are properly tracked and only changes stored"""

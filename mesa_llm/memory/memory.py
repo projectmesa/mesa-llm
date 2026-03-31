@@ -35,6 +35,19 @@ class MemoryEntry:
                 if isinstance(value, dict):
                     lines.append(f"{indent}[blue]└──[/blue] [cyan]{key} :[/cyan]")
                     lines.extend(format_nested_dict(value, indent_level + 1))
+                elif isinstance(value, list):
+                    lines.append(f"{indent}[blue]└──[/blue] [cyan]{key} :[/cyan]")
+                    next_indent = "   " * (indent_level + 1)
+                    for i, item in enumerate(value):
+                        if isinstance(item, dict):
+                            lines.append(
+                                f"{next_indent}[blue]├──[/blue] [cyan]({i + 1})[/cyan]"
+                            )
+                            lines.extend(format_nested_dict(item, indent_level + 2))
+                        else:
+                            lines.append(
+                                f"{next_indent}[blue]├──[/blue] [cyan]{item}[/cyan]"
+                            )
                 else:
                     lines.append(
                         f"{indent}[blue]└──[/blue] [cyan]{key} : [/cyan]{value}"
@@ -50,6 +63,13 @@ class MemoryEntry:
             lines.append(f"\n[bold cyan][{key.title()}][/bold cyan]")
             if isinstance(value, dict):
                 lines.extend(format_nested_dict(value, 1))
+            elif isinstance(value, list):
+                for i, item in enumerate(value):
+                    if isinstance(item, dict):
+                        lines.append(f"   [blue]├──[/blue] [cyan]({i + 1})[/cyan]")
+                        lines.extend(format_nested_dict(item, 2))
+                    else:
+                        lines.append(f"   [blue]├──[/blue] [cyan]{item}[/cyan]")
             else:
                 lines.append(f"   [blue]└──[/blue] [cyan]{value} :[/cyan]")
 
@@ -91,17 +111,20 @@ class Memory(ABC):
         agent: "LLMAgent",
         llm_model: str | None = None,
         display: bool = True,
+        api_base: str | None = None,
     ):
         """
         Initialize the memory
 
         Args:
-            llm_model : the model to use for the summarization
             agent : the agent that the memory belongs to
+            llm_model : the model to use for summarization
+            display : whether to display memory entries in the console
+            api_base : the API base URL to use for the LLM provider
         """
         self.agent = agent
         if llm_model:
-            self.llm = ModuleLLM(llm_model=llm_model)
+            self.llm = ModuleLLM(llm_model=llm_model, api_base=api_base)
 
         self.display = display
 

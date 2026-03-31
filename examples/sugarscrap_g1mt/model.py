@@ -38,6 +38,7 @@ class SugarScapeModel(Model):
         reasoning: type[Reasoning],
         llm_model: str,
         vision: int,
+        api_base: str | None = None,
         parallel_stepping=True,
         seed=None,
     ):
@@ -115,6 +116,7 @@ class SugarScapeModel(Model):
             vision=vision,
             internal_state=None,
             step_prompt="Observe your inventory and MRS. Move to the best resource or propose a trade.",
+            api_base=api_base,
         )
 
         x_pos = self.rng.integers(0, self.grid.width, size=(initial_traders,))

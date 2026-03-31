@@ -77,12 +77,14 @@ class SellerAgent(LLMAgent):
         system_prompt,
         vision,
         internal_state,
+        api_base=None,
     ):
         super().__init__(
             model=model,
             reasoning=reasoning,
             llm_model=llm_model,
             system_prompt=system_prompt,
+            api_base=api_base,
             vision=vision,
             internal_state=internal_state,
         )
@@ -137,12 +139,14 @@ class BuyerAgent(LLMAgent):
         vision,
         internal_state,
         budget,
+        api_base=None,
     ):
         super().__init__(
             model=model,
             reasoning=reasoning,
             llm_model=llm_model,
             system_prompt=system_prompt,
+            api_base=api_base,
             vision=vision,
             internal_state=internal_state,
         )

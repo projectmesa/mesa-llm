@@ -33,6 +33,7 @@ class STLTMemory(Memory):
         consolidation_capacity: int = 2,
         display: bool = True,
         llm_model: str | None = None,
+        api_base: str | None = None,
     ):
         """
         Initialize the memory
@@ -40,6 +41,7 @@ class STLTMemory(Memory):
         Args:
             short_term_capacity : the number of interactions to store in the short term memory
             llm_model : the model to use for the summarization
+            api_base : the API base URL to use for the LLM provider
             agent : the agent that the memory belongs to
         """
         if not llm_model:
@@ -50,6 +52,7 @@ class STLTMemory(Memory):
         super().__init__(
             agent=agent,
             llm_model=llm_model,
+            api_base=api_base,
             display=display,
         )
 
@@ -72,42 +75,56 @@ class STLTMemory(Memory):
 
         self.llm.system_prompt = self.system_prompt
 
-    def _build_consolidation_prompt(self) -> str:
+    def _build_consolidation_prompt(self, evicted_entries: list[MemoryEntry]) -> str:
         """
-        Prompt builder function to reduce redundancy
-        """
-        return f"""
-            Short term memory:
-                {self.format_short_term()}
-            Long term memory:
-                {self.long_term_memory}
-        """
+        Build a prompt that asks the LLM to integrate *evicted* memories
+        into the existing long-term summary.
 
-    def _update_long_term_memory(self):
+        Args:
+            evicted_entries: the oldest short-term entries that were just
+                removed from the deque and need to be summarized.
         """
-        Update the long term memory by summarizing the short term memory with a LLM
+        evicted_text = "\n".join(
+            f"Step {e.step}: \n{e.content}" for e in evicted_entries
+        )
+        return (
+            "Memories to consolidate (oldest entries being removed "
+            "from short-term memory):\n"
+            f"{evicted_text}\n\n"
+            f"Existing long term memory:\n{self.long_term_memory}\n\n"
+            "Please integrate the above memories into a concise, updated "
+            "long-term memory summary."
+        )
+
+    def _update_long_term_memory(self, evicted_entries: list[MemoryEntry]):
         """
-        prompt = self._build_consolidation_prompt()
+        Update the long term memory by summarizing the evicted entries
+        """
+        prompt = self._build_consolidation_prompt(evicted_entries)
         response = self.llm.generate(prompt)
         self.long_term_memory = response.choices[0].message.content
 
-    async def _aupdate_long_term_memory(self):
+    async def _aupdate_long_term_memory(self, evicted_entries: list[MemoryEntry]):
         """
-        Async Function to update long term memory
+        Async version of _update_long_term_memory
         """
-        prompt = self._build_consolidation_prompt()
+        prompt = self._build_consolidation_prompt(evicted_entries)
         response = await self.llm.agenerate(prompt)
         self.long_term_memory = response.choices[0].message.content
 
     def _process_step_core(self, pre_step: bool):
         """
-        Shared core logic for process_step and aprocess_step
+        Shared core logic for process_step and aprocess_step.
+
         Update short-term memory and decide if consolidation is needed.
+        When entries are evicted for consolidation they are captured and
+        returned so the caller can pass them to the LLM for summarization.
 
         Returns:
-            "(new_entry, should_consolidate)"
+            ``(new_entry, evicted_entries)`` where *evicted_entries* is a
+            (possibly empty) list of MemoryEntry objects that were removed
+            from short-term memory and should be consolidated.
         """
-        # Add the new entry to the short term memory
         if pre_step:
             new_entry = MemoryEntry(
                 agent=self.agent,
@@ -116,9 +133,11 @@ class STLTMemory(Memory):
             )
             self.short_term_memory.append(new_entry)
             self.step_content = {}
-            return None, False
+            return None, []
+
         if not self.short_term_memory or self.short_term_memory[-1].step is not None:
-            return None, False
+            return None, []
+
         pre_step_entry = self.short_term_memory.pop()
         self.step_content.update(pre_step_entry.content)
         new_entry = MemoryEntry(
@@ -126,35 +145,38 @@ class STLTMemory(Memory):
             content=self.step_content,
             step=self.agent.model.steps,
         )
-
         self.short_term_memory.append(new_entry)
         self.step_content = {}
 
-        should_consolidate = False
+        evicted: list[MemoryEntry] = []
+
         if (
             len(self.short_term_memory)
             > self.capacity + (self.consolidation_capacity or 0)
             and self.consolidation_capacity
         ):
-            self.short_term_memory.popleft()
-            should_consolidate = True
+            # Pop consolidation_capacity oldest entries for summarization
+            for _ in range(self.consolidation_capacity):
+                if self.short_term_memory:
+                    evicted.append(self.short_term_memory.popleft())
 
         elif (
             len(self.short_term_memory) > self.capacity
             and not self.consolidation_capacity
         ):
+            # No consolidation configured — just discard the oldest entry
             self.short_term_memory.popleft()
 
-        return new_entry, should_consolidate
+        return new_entry, evicted
 
     def process_step(self, pre_step: bool = False):
         """
         Synchronous memory step handler
         """
-        new_entry, should_consolidate = self._process_step_core(pre_step)
+        new_entry, evicted = self._process_step_core(pre_step)
 
-        if should_consolidate:
-            self._update_long_term_memory()
+        if evicted:
+            self._update_long_term_memory(evicted)
 
         if new_entry and self.display:
             new_entry.display()
@@ -163,10 +185,10 @@ class STLTMemory(Memory):
         """
         Async memory step handler (non-blocking consolidation)
         """
-        new_entry, should_consolidate = self._process_step_core(pre_step)
+        new_entry, evicted = self._process_step_core(pre_step)
 
-        if should_consolidate:
-            await self._aupdate_long_term_memory()
+        if evicted:
+            await self._aupdate_long_term_memory(evicted)
 
         if new_entry and self.display:
             new_entry.display()

@@ -104,6 +104,38 @@ class ModuleLLM:
 
         return messages
 
+    def _build_rate_limit_error(self, error: RateLimitError) -> RateLimitError:
+        provider = self.llm_model.split("/", 1)[0].lower()
+        docs_url = {
+            "anthropic": "https://platform.claude.com/docs/en/api/rate-limits",
+            "gemini": "https://ai.google.dev/gemini-api/docs/rate-limits",
+            "novita": "https://novita.ai/docs/guides/llm-rate-limits",
+            "openai": "https://developers.openai.com/api/docs/guides/rate-limits",
+            "openrouter": "https://openrouter.ai/docs/api/reference/limits",
+            "xai": "https://docs.x.ai/developers/rate-limits",
+        }.get(provider)
+
+        detail = error.message.removeprefix("litellm.RateLimitError: ").strip()
+        message_parts = [f"Rate limit exceeded for model '{self.llm_model}'."]
+        if detail:
+            message_parts.append(detail)
+        message_parts.append(
+            "Please wait a few minutes and try again, or switch to a different model."
+        )
+        if docs_url:
+            message_parts.append(f"To check your quota visit: {docs_url}")
+
+        message = " ".join(message_parts)
+        return RateLimitError(
+            message=message,
+            llm_provider=error.llm_provider,
+            model=error.model,
+            response=error.response,
+            litellm_debug_info=error.litellm_debug_info,
+            max_retries=error.max_retries,
+            num_retries=error.num_retries,
+        )
+
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=60),
         retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
@@ -141,7 +173,10 @@ class ModuleLLM:
         if self.api_base:
             completion_kwargs["api_base"] = self.api_base
 
-        response = completion(**completion_kwargs)
+        try:
+            response = completion(**completion_kwargs)
+        except RateLimitError as error:
+            raise self._build_rate_limit_error(error) from error
 
         return response
 
@@ -172,5 +207,8 @@ class ModuleLLM:
                 if self.api_base:
                     completion_kwargs["api_base"] = self.api_base
 
-                response = await acompletion(**completion_kwargs)
+                try:
+                    response = await acompletion(**completion_kwargs)
+                except RateLimitError as error:
+                    raise self._build_rate_limit_error(error) from error
         return response

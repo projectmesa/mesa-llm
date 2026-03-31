@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING, Any
 
 from mesa.discrete_space import (
@@ -14,6 +15,8 @@ from mesa_llm.tools.tool_decorator import tool
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
+
+logger = logging.getLogger(__name__)
 
 # Mapping directions to (dx, dy) for Cartesian-style spaces.
 direction_map_xy = {
@@ -207,15 +210,35 @@ def speak_to(
         and listener_agent.unique_id != agent.unique_id
     ]
 
+    delivered_ids = []
+    skipped_ids = []
+
     for recipient in listener_agents:
+        if not hasattr(recipient, "memory"):
+            skipped_ids.append(recipient.unique_id)
+            logger.warning(
+                "Agent %s has no memory attribute; skipping speak_to.",
+                recipient.unique_id,
+            )
+            continue
+        delivered_ids.append(recipient.unique_id)
         recipient.memory.add_to_memory(
             type="message",
             content={
                 "message": message,
                 "sender": agent.unique_id,
-                "recipients": [
-                    listener_agent.unique_id for listener_agent in listener_agents
-                ],
             },
         )
-    return f"{agent.unique_id} → {[agent.unique_id for agent in listener_agents]} : {message}"
+
+    status_parts = []
+    if delivered_ids:
+        status_parts.append(f"sent message {message!r} to {delivered_ids}")
+    if skipped_ids:
+        status_parts.append(
+            f"skipped {skipped_ids} because they have no `memory` attribute"
+        )
+
+    if not status_parts:
+        return f"Could not send message {message!r}: no matching recipients found."
+
+    return "; ".join(status_parts)

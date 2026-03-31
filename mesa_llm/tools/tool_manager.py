@@ -4,7 +4,7 @@ import inspect
 import json
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from terminal_style import style
 
@@ -40,7 +40,7 @@ class ToolManager:
         6. **Result Handling**: Tool outputs are captured and added to agent memory for future reasoning
     """
 
-    instances: list["ToolManager"] = []
+    instances: ClassVar[list["ToolManager"]] = []
 
     def __init__(self, extra_tools: dict[str, Callable] | None = None):
         # start from everything that was decorated

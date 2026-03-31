@@ -536,6 +536,72 @@ class TestReWOOReasoning:
         assert reasoning.remaining_tool_calls == 0
         assert result3.llm_plan.tool_calls == [mock_tool_3]  # index 2 (3-1=2)
 
+    def test_sequential_replay_dispatches_distinct_tools(self):
+        """Regression: plan() replay must dispatch A→B→C, not A→A→A.
+
+        Before the fix, `current_plan = self.current_plan` was an alias, so
+        `current_plan.tool_calls = [tool_a]` mutated self.current_plan.tool_calls
+        in-place. On step 2, len became 1 and index -1 (Python wrap) returned
+        tool_a again. This test sets current_plan ONCE and never resets it.
+        """
+        mock_agent = Mock()
+        mock_agent.step_prompt = None
+
+        tool_a = Mock(name="tool_a")
+        tool_b = Mock(name="tool_b")
+        tool_c = Mock(name="tool_c")
+
+        mock_plan = Mock()
+        mock_plan.tool_calls = [tool_a, tool_b, tool_c]
+
+        reasoning = ReWOOReasoning(mock_agent)
+        reasoning.current_plan = mock_plan
+        reasoning.current_obs = Observation(step=1, self_state={}, local_state={})
+        reasoning.remaining_tool_calls = 3
+
+        result1 = reasoning.plan()
+        result2 = reasoning.plan()
+        result3 = reasoning.plan()
+
+        assert result1.llm_plan.tool_calls == [tool_a], "Step 1 should dispatch tool A"
+        assert result2.llm_plan.tool_calls == [tool_b], (
+            "Step 2 should dispatch tool B, not A"
+        )
+        assert result3.llm_plan.tool_calls == [tool_c], (
+            "Step 3 should dispatch tool C, not A"
+        )
+        assert reasoning.remaining_tool_calls == 0
+
+    def test_sequential_replay_dispatches_distinct_tools_async(self):
+        """Async regression: aplan() replay must dispatch A→B→C, not A→A→A."""
+        mock_agent = Mock()
+        mock_agent.step_prompt = None
+
+        tool_a = Mock(name="tool_a")
+        tool_b = Mock(name="tool_b")
+        tool_c = Mock(name="tool_c")
+
+        mock_plan = Mock()
+        mock_plan.tool_calls = [tool_a, tool_b, tool_c]
+
+        reasoning = ReWOOReasoning(mock_agent)
+        reasoning.current_plan = mock_plan
+        reasoning.current_obs = Observation(step=1, self_state={}, local_state={})
+        reasoning.remaining_tool_calls = 3
+
+        result1 = asyncio.run(reasoning.aplan())
+        result2 = asyncio.run(reasoning.aplan())
+        result3 = asyncio.run(reasoning.aplan())
+
+        assert result1.llm_plan.tool_calls == [tool_a], "Step 1 should dispatch tool A"
+        assert result2.llm_plan.tool_calls == [tool_b], (
+            "Step 2 should dispatch tool B, not A"
+        )
+        assert result3.llm_plan.tool_calls == [tool_c], (
+            "Step 3 should dispatch tool C, not A"
+        )
+        assert reasoning.remaining_tool_calls == 0
+
 
 class TestReWOOSignatureConsistency:
     def test_plan_accepts_obs_kwarg(self):

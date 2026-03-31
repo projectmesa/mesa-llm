@@ -26,13 +26,39 @@ llm = ModuleLLM(
 response = llm.generate("What should I do next in this situation?")
 ```
 
+## Custom API Endpoints
+
+If you are using a self-hosted or remote LLM server (e.g., Ollama on another machine, vLLM, LM Studio), you can specify a custom API endpoint using the `api_base` parameter:
+
+```python
+from mesa_llm.module_llm import ModuleLLM
+
+# Connect to a remote Ollama instance
+llm = ModuleLLM(
+   llm_model="ollama_chat/llama3.2",
+   system_prompt="You are a helpful agent.",
+   api_base="http://192.168.1.100:11434",
+)
+
+# Connect to a local LM Studio server
+llm = ModuleLLM(
+   llm_model="openai/my-local-model",
+   system_prompt="You are a helpful agent.",
+   api_base="http://localhost:1234/v1",
+)
+```
+
+> **Note:** For standard Ollama running locally on the default port, `api_base` is optional — it defaults to `http://localhost:11434`. For cloud providers (OpenAI, Anthropic, Google, Groq, etc.), `api_base` is not needed as the URLs are automatically resolved by the LiteLLM library.
+
+The `api_base` parameter is supported across all layers of Mesa-LLM: `ModuleLLM`, `LLMAgent`, and all `Memory` subclasses (`STLTMemory`, `EpisodicMemory`, `LongTermMemory`).
+
 ## Tool Integration
 
 ```python
 from mesa_llm.tools.tool_manager import ToolManager
 
 tool_manager = ToolManager()
-llm = ModuleLLM(api_key="key", llm_model="openai/gpt-4o")
+llm = ModuleLLM(llm_model="openai/gpt-4o")
 
 # Generate with tool calling
 response = llm.generate(
@@ -87,10 +113,9 @@ decision = AgentDecision.parse_raw(response.choices[0].message.content)
 
 ```python
 class MyAgent(LLMAgent):
-   def __init__(self, model, api_key, **kwargs):
+   def __init__(self, model, **kwargs):
       super().__init__(
             model=model,
-            api_key=api_key,
             llm_model="anthropic/claude-3-sonnet",  # Automatically creates ModuleLLM
             system_prompt="Custom agent behavior instructions",
             **kwargs
