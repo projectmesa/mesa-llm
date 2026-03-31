@@ -7,7 +7,6 @@ from mesa.space import MultiGrid
 from rich import print
 
 from examples.stock_market.agents import AnalystAgent, TraderAgent
-from mesa_llm.reasoning.reasoning import Reasoning
 
 
 class StockMarketModel(Model):
@@ -28,9 +27,19 @@ class StockMarketModel(Model):
         seed: Random seed.
     """
 
-    def __init__(self, initial_traders, n_analysts, width, height,
-                 reasoning, llm_model, vision, initial_price=100.0,
-                 api_base=None, seed=None):
+    def __init__(
+        self,
+        initial_traders,
+        n_analysts,
+        width,
+        height,
+        reasoning,
+        llm_model,
+        vision,
+        initial_price=100.0,
+        api_base=None,
+        seed=None,
+    ):
         super().__init__(seed=seed)
         self.width = width
         self.height = height
@@ -40,9 +49,14 @@ class StockMarketModel(Model):
 
         # Analyst agents
         analysts = AnalystAgent.create_agents(
-            self, n=n_analysts, reasoning=reasoning, llm_model=llm_model,
+            self,
+            n=n_analysts,
+            reasoning=reasoning,
+            llm_model=llm_model,
             system_prompt="You are a quantitative market analyst. Observe price trends, RSI, and volatility. Send clear BUY, HOLD, or SELL signals to nearby traders. Be concise and data-driven.",
-            vision=vision, internal_state=["analytical", "data-driven", "calm"], api_base=api_base,
+            vision=vision,
+            internal_state=["analytical", "data-driven", "calm"],
+            api_base=api_base,
         )
         ax = self.rng.integers(0, self.grid.width, size=(n_analysts,))
         ay = self.rng.integers(0, self.grid.height, size=(n_analysts,))
@@ -52,10 +66,15 @@ class StockMarketModel(Model):
         # Conservative traders
         n_conservative = math.ceil(initial_traders / 2)
         conservative = TraderAgent.create_agents(
-            self, n=n_conservative, reasoning=reasoning, llm_model=llm_model,
+            self,
+            n=n_conservative,
+            reasoning=reasoning,
+            llm_model=llm_model,
             system_prompt="You are a conservative trader. Only buy when RSI is below 35 and trend is rising. Sell quickly if you sense risk. Protect capital above all else.",
-            vision=vision, internal_state=["risk-averse", "patient", "disciplined"],
-            budget=500.0, api_base=api_base,
+            vision=vision,
+            internal_state=["risk-averse", "patient", "disciplined"],
+            budget=500.0,
+            api_base=api_base,
         )
         cx = self.rng.integers(0, self.grid.width, size=(n_conservative,))
         cy = self.rng.integers(0, self.grid.height, size=(n_conservative,))
@@ -65,10 +84,15 @@ class StockMarketModel(Model):
         # Aggressive traders
         n_aggressive = math.floor(initial_traders / 2)
         aggressive = TraderAgent.create_agents(
-            self, n=n_aggressive, reasoning=reasoning, llm_model=llm_model,
+            self,
+            n=n_aggressive,
+            reasoning=reasoning,
+            llm_model=llm_model,
             system_prompt="You are an aggressive momentum trader. Buy when price is rising, sell fast to lock in gains. Act quickly on analyst signals. Maximize profit.",
-            vision=vision, internal_state=["risk-tolerant", "fast", "opportunistic"],
-            budget=500.0, api_base=api_base,
+            vision=vision,
+            internal_state=["risk-tolerant", "fast", "opportunistic"],
+            budget=500.0,
+            api_base=api_base,
         )
         agx = self.rng.integers(0, self.grid.width, size=(n_aggressive,))
         agy = self.rng.integers(0, self.grid.height, size=(n_aggressive,))
@@ -78,9 +102,12 @@ class StockMarketModel(Model):
         self.datacollector = DataCollector(
             model_reporters={
                 "Stock_Price": lambda m: round(m.current_price, 2),
-                "Total_Trades": lambda m: sum(a.trades for a in m.agents if isinstance(a, TraderAgent)),
+                "Total_Trades": lambda m: sum(
+                    a.trades for a in m.agents if isinstance(a, TraderAgent)
+                ),
                 "Avg_Trader_Budget": lambda m: round(
-                    np.mean([a.budget for a in m.agents if isinstance(a, TraderAgent)]), 2
+                    np.mean([a.budget for a in m.agents if isinstance(a, TraderAgent)]),
+                    2,
                 ),
             }
         )
@@ -102,7 +129,7 @@ class StockMarketModel(Model):
     def rsi(self, period: int = 6) -> float:
         if len(self.price_history) < period + 1:
             return 50.0
-        deltas = np.diff(self.price_history[-period - 1:])
+        deltas = np.diff(self.price_history[-period - 1 :])
         gains = deltas[deltas > 0].sum()
         losses = abs(deltas[deltas < 0].sum())
         if losses == 0:
@@ -134,5 +161,6 @@ class StockMarketModel(Model):
 
 if __name__ == "__main__":
     from examples.stock_market.app import model
+
     for _ in range(10):
         model.step()

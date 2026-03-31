@@ -26,7 +26,9 @@ def get_trading_history(agent, max_messages: int = 5) -> str:
                     sender_name = f"{type(sender).__name__} {sender.unique_id}"
                 elif isinstance(sender, int):
                     try:
-                        agent_obj = next(a for a in agent.model.agents if a.unique_id == sender)
+                        agent_obj = next(
+                            a for a in agent.model.agents if a.unique_id == sender
+                        )
                         sender_name = f"{type(agent_obj).__name__} {sender}"
                     except StopIteration:
                         sender_name = f"Agent {sender}"
@@ -39,10 +41,26 @@ def get_trading_history(agent, max_messages: int = 5) -> str:
 
 
 class TraderAgent(LLMAgent):
-    def __init__(self, model, reasoning, llm_model, system_prompt, vision, internal_state, budget, api_base=None):
-        super().__init__(model=model, reasoning=reasoning, llm_model=llm_model,
-                         system_prompt=system_prompt, api_base=api_base,
-                         vision=vision, internal_state=internal_state)
+    def __init__(
+        self,
+        model,
+        reasoning,
+        llm_model,
+        system_prompt,
+        vision,
+        internal_state,
+        budget,
+        api_base=None,
+    ):
+        super().__init__(
+            model=model,
+            reasoning=reasoning,
+            llm_model=llm_model,
+            system_prompt=system_prompt,
+            api_base=api_base,
+            vision=vision,
+            internal_state=internal_state,
+        )
         self.tool_manager = trader_tool_manager
         self.budget = budget
         self.shares = 0
@@ -61,7 +79,9 @@ class TraderAgent(LLMAgent):
             f"RECENT ACTIVITY:\n{history}\n\n"
             "Use execute_trade to BUY, SELL, or HOLD. Justify briefly."
         )
-        plan = self.reasoning.plan(prompt=prompt, obs=observation, selected_tools=["execute_trade", "speak_to"])
+        plan = self.reasoning.plan(
+            prompt=prompt, obs=observation, selected_tools=["execute_trade", "speak_to"]
+        )
         self.apply_plan(plan)
 
     async def astep(self):
@@ -77,15 +97,32 @@ class TraderAgent(LLMAgent):
             f"RECENT ACTIVITY:\n{history}\n\n"
             "Use execute_trade to BUY, SELL, or HOLD. Justify briefly."
         )
-        plan = await self.reasoning.aplan(prompt=prompt, obs=observation, selected_tools=["execute_trade", "speak_to"])
+        plan = await self.reasoning.aplan(
+            prompt=prompt, obs=observation, selected_tools=["execute_trade", "speak_to"]
+        )
         self.apply_plan(plan)
 
 
 class AnalystAgent(LLMAgent):
-    def __init__(self, model, reasoning, llm_model, system_prompt, vision, internal_state, api_base=None):
-        super().__init__(model=model, reasoning=reasoning, llm_model=llm_model,
-                         system_prompt=system_prompt, api_base=api_base,
-                         vision=vision, internal_state=internal_state)
+    def __init__(
+        self,
+        model,
+        reasoning,
+        llm_model,
+        system_prompt,
+        vision,
+        internal_state,
+        api_base=None,
+    ):
+        super().__init__(
+            model=model,
+            reasoning=reasoning,
+            llm_model=llm_model,
+            system_prompt=system_prompt,
+            api_base=api_base,
+            vision=vision,
+            internal_state=internal_state,
+        )
         self.tool_manager = analyst_tool_manager
         self.recommendations_sent = 0
 
@@ -99,7 +136,9 @@ class AnalystAgent(LLMAgent):
             f"- Volatility: {self.model.volatility():.4f}\n\n"
             "Broadcast a BUY/HOLD/SELL signal with brief reasoning to nearby traders using speak_to."
         )
-        plan = self.reasoning.plan(prompt=prompt, obs=observation, selected_tools=["speak_to"])
+        plan = self.reasoning.plan(
+            prompt=prompt, obs=observation, selected_tools=["speak_to"]
+        )
         self.apply_plan(plan)
 
     async def astep(self):
@@ -112,5 +151,7 @@ class AnalystAgent(LLMAgent):
             f"- Volatility: {self.model.volatility():.4f}\n\n"
             "Broadcast a BUY/HOLD/SELL signal with brief reasoning to nearby traders using speak_to."
         )
-        plan = await self.reasoning.aplan(prompt=prompt, obs=observation, selected_tools=["speak_to"])
+        plan = await self.reasoning.aplan(
+            prompt=prompt, obs=observation, selected_tools=["speak_to"]
+        )
         self.apply_plan(plan)

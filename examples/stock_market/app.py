@@ -64,7 +64,11 @@ if __name__ == "__main__":
     def MarketStatsPanel(*args, **kwargs):
         show = solara.use_reactive(False)
         df = solara.use_memo(
-            lambda: model.datacollector.get_model_vars_dataframe() if show.value else pd.DataFrame(),
+            lambda: (
+                model.datacollector.get_model_vars_dataframe()
+                if show.value
+                else pd.DataFrame()
+            ),
             [show.value],
         )
         solara.Button(label="Show Market Data", on_click=lambda: show.set(True))
