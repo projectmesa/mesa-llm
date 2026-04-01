@@ -170,8 +170,10 @@ class EpisodicMemory(Memory):
             raise ValueError(
                 style(f"Invalid JSON response returned by the model: {e}", color="red")
             ) from e
+        except TypeError:
+            formatted_response = {}  # Handle 'None' gracefully
 
-        return formatted_response["grade"]
+        return formatted_response.get("grade")
 
     async def agrade_event_importance(self, type: str, content: dict) -> float:
         """
@@ -192,8 +194,10 @@ class EpisodicMemory(Memory):
             raise ValueError(
                 style(f"Invalid JSON response returned by the model: {e}", color="red")
             ) from e
+        except TypeError:
+            formatted_response = {}  # Handle 'None' gracefully
 
-        return formatted_response["grade"]
+        return formatted_response.get("grade")
 
     def retrieve_top_k_entries(self, k: int) -> list[MemoryEntry]:
         """

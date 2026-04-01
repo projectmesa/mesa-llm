@@ -102,6 +102,8 @@ class ReActReasoning(Reasoning):
             raise ValueError(
                 style(f"Invalid JSON response returned by the model: {e}", color="red")
             ) from e
+        except TypeError:
+            formatted_response = {}  # Handle 'None' gracefully
 
         self.agent.memory.add_to_memory(type="plan", content=formatted_response)
 
@@ -159,6 +161,8 @@ class ReActReasoning(Reasoning):
             raise ValueError(
                 style(f"Invalid JSON response returned by the model: {e}", color="red")
             ) from e
+        except TypeError:
+            formatted_response = {} # Handle 'None' gracefully
 
         await self.agent.memory.aadd_to_memory(type="plan", content=formatted_response)
 
