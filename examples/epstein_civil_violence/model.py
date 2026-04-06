@@ -20,9 +20,9 @@ class EpsteinModel(Model):
         llm_model: str,
         vision: int,
         parallel_stepping=True,
-        seed=None,
+        rng=None,
     ):
-        super().__init__(seed=seed)
+        super().__init__(rng=rng)
         self.width = width
         self.height = height
         self.parallel_stepping = parallel_stepping

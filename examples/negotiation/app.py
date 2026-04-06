@@ -31,7 +31,7 @@ load_dotenv()
 
 
 model_params = {
-    "seed": {
+    "rng": {
         "type": "InputText",
         "value": 42,
         "label": "Random Seed",
@@ -52,7 +52,7 @@ model = NegotiationModel(
     reasoning=model_params["reasoning"],
     llm_model=model_params["llm_model"],
     vision=model_params["vision"],
-    seed=model_params["seed"]["value"],
+    rng=model_params["rng"]["value"],
 )
 
 if __name__ == "__main__":

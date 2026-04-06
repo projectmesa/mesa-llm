@@ -29,10 +29,10 @@ class NegotiationModel(Model):
         reasoning: type[Reasoning],
         llm_model: str,
         vision: int,
-        seed=None,
+        rng=None,
         parallel_stepping=True,
     ):
-        super().__init__(seed=seed)
+        super().__init__(rng=rng)
         self.width = width
         self.height = height
         self.parallel_stepping = parallel_stepping

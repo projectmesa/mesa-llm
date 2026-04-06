@@ -38,7 +38,7 @@ agent_colors = {
 }
 
 model_params = {
-    "seed": {
+    "rng": {
         "type": "InputText",
         "value": 42,
         "label": "Random Seed",
@@ -62,7 +62,7 @@ model = EpsteinModel(
     reasoning=model_params["reasoning"],
     llm_model=model_params["llm_model"],
     vision=model_params["vision"],
-    seed=model_params["seed"]["value"],
+    rng=model_params["rng"]["value"],
     parallel_stepping=model_params["parallel_stepping"],
 )
 
