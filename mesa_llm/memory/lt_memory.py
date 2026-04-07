@@ -99,7 +99,7 @@ class LongTermMemory(Memory):
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
-                step=self.agent.model.steps,
+                step=self.agent.model.time,
             )
             self.buffer = new_entry
             self._update_long_term_memory()
@@ -130,7 +130,7 @@ class LongTermMemory(Memory):
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
-                step=self.agent.model.steps,
+                step=self.agent.model.time,
             )
             self.buffer = new_entry
             await self._aupdate_long_term_memory()
