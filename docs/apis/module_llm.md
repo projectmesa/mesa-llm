@@ -10,6 +10,7 @@ In your .env file, set the API key for the LLM provider, then in your python fil
 # .env
 OPENAI_API_KEY=your-api-key
 ANTHROPIC_API_KEY=your-api-key
+GROQ_API_KEY=your-api-key
 ```
 
 ```python
@@ -19,6 +20,12 @@ from mesa_llm.module_llm import ModuleLLM
 # Initialize with specific provider and model
 llm = ModuleLLM(
    llm_model="openai/gpt-4o",
+   system_prompt="You are a helpful simulation agent."
+)
+
+# Groq provider follows the same provider/model pattern
+groq_llm = ModuleLLM(
+   llm_model="groq/llama-3.1-8b-instant",
    system_prompt="You are a helpful simulation agent."
 )
 

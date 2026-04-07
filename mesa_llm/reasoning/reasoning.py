@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from mesa_llm.model_step import get_model_step
+
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
 
@@ -120,7 +122,11 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        plan = Plan(
+            step=get_model_step(self.agent.model),
+            llm_plan=response_message,
+            ttl=ttl,
+        )
 
         return plan
 
@@ -143,6 +149,10 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        plan = Plan(
+            step=get_model_step(self.agent.model),
+            llm_plan=response_message,
+            ttl=ttl,
+        )
 
         return plan

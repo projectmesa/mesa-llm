@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from mesa_llm.memory.memory import Memory, MemoryEntry
+from mesa_llm.model_step import get_model_step
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -99,7 +100,7 @@ class LongTermMemory(Memory):
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
-                step=self.agent.model.steps,
+                step=get_model_step(self.agent.model),
             )
             self.buffer = new_entry
             self._update_long_term_memory()
@@ -130,7 +131,7 @@ class LongTermMemory(Memory):
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=self.step_content,
-                step=self.agent.model.steps,
+                step=get_model_step(self.agent.model),
             )
             self.buffer = new_entry
             await self._aupdate_long_term_memory()

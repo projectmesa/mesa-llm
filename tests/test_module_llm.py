@@ -1,5 +1,5 @@
 import os
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from litellm.exceptions import RateLimitError
@@ -82,6 +82,95 @@ class TestModuleLLM:
         llm = ModuleLLM(llm_model="openai/gpt-4o")
         messages = llm._build_messages(prompt=None)
         assert messages == [{"role": "system", "content": ""}]
+
+    def test_build_messages_type_validation(self):
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+
+        with pytest.raises(TypeError, match="prompt list must contain only strings"):
+            llm._build_messages(["valid", 123])  # type: ignore[list-item]
+
+        with pytest.raises(
+            TypeError, match=r"prompt must be a string, list\[str\], or None"
+        ):
+            llm._build_messages(123)  # type: ignore[arg-type]
+
+    def test_groq_initialization(self, monkeypatch):
+        class _DummyGroq:
+            def __init__(self, api_key):
+                self.api_key = api_key
+
+        class _DummyAsyncGroq:
+            def __init__(self, api_key):
+                self.api_key = api_key
+
+        monkeypatch.setattr("mesa_llm.module_llm.GroqClient", _DummyGroq)
+        monkeypatch.setattr("mesa_llm.module_llm.AsyncGroqClient", _DummyAsyncGroq)
+        monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+
+        llm = ModuleLLM(llm_model="groq/llama-3.1-8b-instant")
+        assert llm.api_key == "test_groq_key"
+        assert llm._groq_client is not None
+        assert llm._agroq_client is not None
+
+    def test_groq_missing_api_key(self, monkeypatch):
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="No API key found for GROQ"):
+            ModuleLLM(llm_model="groq/llama-3.1-8b-instant")
+
+    def test_groq_invalid_model_format(self):
+        with pytest.raises(ValueError, match="Invalid model format"):
+            ModuleLLM(llm_model="groq/")
+
+    def test_groq_generate_success(self, monkeypatch, llm_response_factory):
+        class _DummyGroq:
+            def __init__(self, api_key):
+                self.api_key = api_key
+
+        monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+        monkeypatch.setattr("mesa_llm.module_llm.GroqClient", _DummyGroq)
+        monkeypatch.setattr("mesa_llm.module_llm.AsyncGroqClient", None)
+
+        llm = ModuleLLM(llm_model="groq/llama-3.1-8b-instant")
+        llm._groq_client = Mock()
+        llm._groq_client.chat.completions.create.return_value = llm_response_factory()
+
+        response = llm.generate(prompt="hello")
+        assert response is not None
+        llm._groq_client.chat.completions.create.assert_called_once()
+
+    def test_groq_generate_invalid_model_error(self, monkeypatch):
+        class _DummyGroq:
+            def __init__(self, api_key):
+                self.api_key = api_key
+
+        monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+        monkeypatch.setattr("mesa_llm.module_llm.GroqClient", _DummyGroq)
+        monkeypatch.setattr("mesa_llm.module_llm.AsyncGroqClient", None)
+
+        llm = ModuleLLM(llm_model="groq/llama-3.1-8b-instant")
+        llm._groq_client = Mock()
+        llm._groq_client.chat.completions.create.side_effect = Exception(
+            "model not found"
+        )
+
+        with pytest.raises(ValueError, match="Invalid Groq model"):
+            llm.generate(prompt="hello")
+
+    def test_groq_generate_timeout_error(self, monkeypatch):
+        class _DummyGroq:
+            def __init__(self, api_key):
+                self.api_key = api_key
+
+        monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+        monkeypatch.setattr("mesa_llm.module_llm.GroqClient", _DummyGroq)
+        monkeypatch.setattr("mesa_llm.module_llm.AsyncGroqClient", None)
+
+        llm = ModuleLLM(llm_model="groq/llama-3.1-8b-instant")
+        llm._groq_client = Mock()
+        llm._groq_client.chat.completions.create.side_effect = Exception("timeout")
+
+        with pytest.raises(TimeoutError, match="Groq request timed out"):
+            llm.generate(prompt="hello")
 
     def test_generate(self, monkeypatch, llm_response_factory):
         monkeypatch.setattr(
@@ -172,6 +261,23 @@ class TestModuleLLM:
         response = await llm.agenerate(
             prompt=["Hello, how are you?", "What is the weather in Tokyo?"]
         )
+        assert response is not None
+
+    @pytest.mark.asyncio
+    async def test_agenerate_groq_success(self, monkeypatch, llm_response_factory):
+        class _DummyGroq:
+            def __init__(self, api_key):
+                self.api_key = api_key
+
+        monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
+        monkeypatch.setattr("mesa_llm.module_llm.GroqClient", _DummyGroq)
+        monkeypatch.setattr("mesa_llm.module_llm.AsyncGroqClient", None)
+
+        llm = ModuleLLM(llm_model="groq/llama-3.1-8b-instant")
+        llm._groq_client = Mock()
+        llm._groq_client.chat.completions.create.return_value = llm_response_factory()
+
+        response = await llm.agenerate(prompt="hello")
         assert response is not None
 
     @pytest.mark.asyncio

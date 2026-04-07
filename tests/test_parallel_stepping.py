@@ -37,6 +37,16 @@ class AsyncAgent(Agent):
         self.counter += 1
 
 
+class FailingAsyncAgent(Agent):
+    async def astep(self):
+        raise RuntimeError("async failure")
+
+
+class FailingSyncAgent(Agent):
+    def step(self):
+        raise RuntimeError("sync failure")
+
+
 @pytest.mark.asyncio
 async def test_step_agents_parallel():
     m = DummyModel()
@@ -47,6 +57,28 @@ async def test_step_agents_parallel():
     assert a2.counter == 1
 
 
+@pytest.mark.asyncio
+async def test_step_agents_parallel_isolates_failures():
+    m = DummyModel()
+    failing = FailingAsyncAgent(m)
+    healthy = AsyncAgent(m)
+
+    results = await step_agents_parallel([failing, healthy])
+
+    assert len(results) == 2
+    assert any(not result.success for result in results)
+    assert healthy.counter == 1
+
+
+@pytest.mark.asyncio
+async def test_step_agents_parallel_raises_when_configured():
+    m = DummyModel()
+    failing = FailingAsyncAgent(m)
+
+    with pytest.raises(RuntimeError, match="async failure"):
+        await step_agents_parallel([failing], on_error="raise")
+
+
 def test_step_agents_multithreaded():
     m = DummyModel()
     a1 = SyncAgent(m)
@@ -54,6 +86,26 @@ def test_step_agents_multithreaded():
     step_agents_multithreaded([a1, a2])
     assert a1.counter == 1
     assert a2.counter == 1
+
+
+def test_step_agents_multithreaded_isolates_failures():
+    m = DummyModel()
+    failing = FailingSyncAgent(m)
+    healthy = SyncAgent(m)
+
+    results = step_agents_multithreaded([failing, healthy])
+
+    assert len(results) == 2
+    assert any(not result.success for result in results)
+    assert healthy.counter == 1
+
+
+def test_step_agents_multithreaded_raises_when_configured():
+    m = DummyModel()
+    failing = FailingSyncAgent(m)
+
+    with pytest.raises(RuntimeError, match="sync failure"):
+        step_agents_multithreaded([failing], on_error="raise")
 
 
 def test_automatic_parallel_shuffle_do():
@@ -83,6 +135,13 @@ def test_automatic_parallel_shuffle_do():
     agents.shuffle_do("step")
     assert a1.counter == 2
     disable_automatic_parallel_stepping()
+
+
+def test_enable_automatic_parallel_stepping_rejects_invalid_on_error():
+    with pytest.raises(
+        ValueError, match="on_error must be either 'continue' or 'raise'"
+    ):
+        enable_automatic_parallel_stepping(on_error="invalid")
 
 
 def test_step_agents_parallel_sync_in_running_loop():

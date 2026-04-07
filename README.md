@@ -53,6 +53,7 @@ Mesa-LLM supports the following LLM providers:
 - OpenRouter
 - Novita AI
 - Google Gemini
+- Groq
 
 
 ## Contributing to Mesa-LLM

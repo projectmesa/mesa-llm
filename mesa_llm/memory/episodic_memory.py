@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from mesa_llm.memory.memory import Memory, MemoryEntry
+from mesa_llm.model_step import get_model_step
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -197,7 +198,7 @@ class EpisodicMemory(Memory):
         recency_dict = {}
 
         entries = list(self.memory_entries)
-        current_step = self.agent.model.steps
+        current_step = get_model_step(self.agent.model)
 
         for i, entry in enumerate(entries):
             importance_dict[i] = self._extract_importance(entry)
@@ -221,7 +222,7 @@ class EpisodicMemory(Memory):
         new_entry = MemoryEntry(
             agent=self.agent,
             content={type: graded_content},
-            step=self.agent.model.steps,
+            step=get_model_step(self.agent.model),
         )
         self.memory_entries.append(new_entry)
 

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.panel import Panel
 
+from mesa_llm.model_step import get_model_step
 from mesa_llm.module_llm import ModuleLLM
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ class MemoryEntry:
 
     def display(self):
         if self.agent and hasattr(self.agent, "memory") and self.agent.memory.display:
-            title = f"Step [bold purple]{self.agent.model.steps}[/bold purple] [bold]|[/bold] {type(self.agent).__name__} [bold purple]{self.agent.unique_id}[/bold purple]"
+            title = f"Step [bold purple]{get_model_step(self.agent.model)}[/bold purple] [bold]|[/bold] {type(self.agent).__name__} [bold purple]{self.agent.unique_id}[/bold purple]"
             panel = Panel(
                 self.__str__(),
                 title=title,
