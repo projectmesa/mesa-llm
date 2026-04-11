@@ -6,7 +6,6 @@ import pytest
 
 from mesa_llm.memory.episodic_memory import (
     EpisodicMemory,
-    cos_sim,
     normalize_dict_values,
 )
 from mesa_llm.memory.memory import MemoryEntry
@@ -37,23 +36,6 @@ def test_normalize_dict_floats_logic_when_empty():
     """
     norm = normalize_dict_values({}, 0, 1)
     assert norm == {}
-
-
-def test_cos_sim_normal_math():
-    """Proves normal cosine similarity function works gracefully on raw floats."""
-
-    assert cos_sim([1.0, 0.0], [0.0, 1.0]) == 0.0
-    assert abs(cos_sim([1.0, 1.0], [1.0, 1.0]) - 1.0) < 0.0001
-    assert abs(cos_sim([1.0, 1.0], [-1.0, -1.0]) - (-1.0)) < 0.0001
-
-
-def test_cos_sim_zero_division():
-    """Tests an edge case wherein if division by 0 occurs it should safely return 0.0"""
-    a = [0.0, 0.0, 0.0]
-    b = [1.0, 1.0, 1.0]
-
-    assert cos_sim(a, b) == 0.0
-    assert cos_sim(a, a) == 0.0
 
 
 class TestEpisodicMemory:
@@ -392,15 +374,11 @@ class TestEpisodicMemory:
             agent=episodic_mock_agent,
         )
 
-        memory.memory_entries.extend([entry_a, entry_b, entry_c])
+        entry_a.embedding = [1.0, 0.0, 0.0]  # apple
+        entry_b.embedding = [0.0, 1.0, 0.0]  # banana
+        entry_c.embedding = [0.0, 0.0, 1.0]  # cherry
 
-        memory._embeddings.extend(
-            [
-                [1.0, 0.0, 0.0],  # apple
-                [0.0, 1.0, 0.0],  # banana
-                [0.0, 0.0, 1.0],  # cherry
-            ]
-        )
+        memory.memory_entries.extend([entry_a, entry_b, entry_c])
 
         memory._get_embedding = MagicMock(return_value=[0.0, 1.0, 0.0])
 
@@ -408,7 +386,7 @@ class TestEpisodicMemory:
 
         assert len(top_entries) == 1
         assert top_entries[0].content["data"] == "banana"
-        memory._embeddings[1] = None
+        entry_b.embedding = None
 
         memory._get_embedding = MagicMock(return_value=[1.0, 0.0, 0.0])
         top_entries = memory.retrieve_top_k_entries(k=1, qry_str="I want an apple")
@@ -446,8 +424,7 @@ class TestEpisodicMemory:
 
         assert len(memory.memory_entries) == 1
         assert memory.memory_entries[0].content["observation"]["message"] == "hello"
-        assert len(memory._embeddings) == 1
-        assert memory._embeddings[0] is None
+        assert memory.memory_entries[0].embedding is None
 
     @pytest.mark.asyncio
     async def test_afinalize_entry_embedding_exception(self, mock_agent):
@@ -469,8 +446,7 @@ class TestEpisodicMemory:
         await memory._afinalize_entry("observation", content)
 
         assert len(memory.memory_entries) == 1
-        assert len(memory._embeddings) == 1
-        assert memory._embeddings[0] is None
+        assert memory.memory_entries[0].embedding is None
 
     @pytest.mark.asyncio
     async def test_process_step_no_ops(self, episodic_mock_agent):

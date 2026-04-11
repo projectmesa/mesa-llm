@@ -20,6 +20,7 @@ class MemoryEntry:
     content: dict
     step: int | None
     agent: "LLMAgent"
+    embedding: list[float] | None = None
 
     def __str__(self) -> str:
         """

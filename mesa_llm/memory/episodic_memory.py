@@ -3,8 +3,7 @@ from collections import deque
 from typing import TYPE_CHECKING
 
 import litellm
-from numpy import array, dot
-from numpy.linalg import norm
+import numpy as np
 from pydantic import BaseModel
 
 from mesa_llm.memory.memory import Memory, MemoryEntry
@@ -45,19 +44,6 @@ def normalize_dict_values(scores: dict, min_target: float, max_target: float) ->
             ) / range_val + min_target
 
     return scores
-
-
-def cos_sim(a: list[float], b: list[float]) -> float:
-    """Implement a Cosine Similarity metrics to grade the two input arrays.
-
-    mirrors the cosine similarity helper used in :
-    https://github.com/joonspk-research/generative_agents/blob/main/reverie/backend_server/persona/cognitive_modules/retrieve.py
-    """
-    a_arr, b_arr = array(a), array(b)
-    denom = norm(a_arr) * norm(b_arr)
-    if denom == 0:
-        return 0.0
-    return float(dot(a_arr, b_arr) / denom)
 
 
 class EpisodicMemory(Memory):
@@ -105,7 +91,6 @@ class EpisodicMemory(Memory):
         self.recency_decay = recency_decay
         self.embedding_model = embedding_model
 
-        self._embeddings: deque[list[float] | None] = deque(maxlen=max_capacity)
         self.recency_weight = recency_weight
         self.relevance_weight = relevance_weight
         self.importance_weight = importance_weight
@@ -253,7 +238,6 @@ class EpisodicMemory(Memory):
             return []
 
         entries = list(self.memory_entries)[-self.considered_entries :]
-        embeddings_slice = list(self._embeddings)[-self.considered_entries :]
 
         importance_dict = {}
         recency_dict = {}
@@ -272,11 +256,35 @@ class EpisodicMemory(Memory):
 
         use_relevance = qry_embedding is not None
         if use_relevance:
-            for i, (_, emb) in enumerate(zip(entries, embeddings_slice)):
+            valid_indices = []
+            matrix_rows = []
+
+            for i, entry in enumerate(entries):
+                emb = getattr(entry, "embedding", None)
                 if emb is not None:
-                    relevance_dict[i] = cos_sim(emb, qry_embedding)
+                    valid_indices.append(i)
+                    matrix_rows.append(emb)
                 else:
                     relevance_dict[i] = 0.0
+
+            if matrix_rows:
+                memory_matrix = np.array(matrix_rows)
+                query_vec = np.array(qry_embedding)
+
+                dot_products = np.dot(memory_matrix, query_vec)
+                norms_matrix = np.linalg.norm(memory_matrix, axis=1)
+                norm_query = np.linalg.norm(query_vec)
+                denoms = norms_matrix * norm_query
+
+                similarities = np.divide(
+                    dot_products,
+                    denoms,
+                    out=np.zeros_like(dot_products),
+                    where=denoms != 0,
+                )
+
+                for idx, sim in zip(valid_indices, similarities):
+                    relevance_dict[idx] = float(sim)
 
         importance_scaled = normalize_dict_values(dict(importance_dict), 0, 1)
         recency_scaled = normalize_dict_values(dict(recency_dict), 0, 1)
@@ -317,8 +325,8 @@ class EpisodicMemory(Memory):
             except Exception:
                 emb = None
 
+        new_entry.embedding = emb
         self.memory_entries.append(new_entry)
-        self._embeddings.append(emb)
 
     async def _afinalize_entry(self, type: str, graded_content: dict):
         """Async version: Create entry and compute its embedding."""
@@ -339,8 +347,8 @@ class EpisodicMemory(Memory):
             except Exception:
                 emb = None
 
+        new_entry.embedding = emb
         self.memory_entries.append(new_entry)
-        self._embeddings.append(emb)
 
     def add_to_memory(self, type: str, content: dict):
         """
