@@ -5,19 +5,50 @@ from dotenv import load_dotenv
 from litellm import acompletion, completion, litellm
 from litellm.exceptions import (
     APIConnectionError,
+    NotFoundError,
     RateLimitError,
     Timeout,
 )
-from tenacity import AsyncRetrying, retry, retry_if_exception_type, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    retry,
+    retry_if_exception,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 RETRYABLE_EXCEPTIONS = (
     APIConnectionError,
     Timeout,
     RateLimitError,
 )
+MAX_RETRY_ATTEMPTS = 5
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+GEMINI_MODEL_SUGGESTIONS = {
+    "gemini-pro": "gemini/gemini-2.0-flash",
+    "gemini-1.5-pro": "gemini/gemini-2.0-flash",
+}
+
+
+def _should_retry_exception(exception: BaseException) -> bool:
+    if isinstance(exception, (APIConnectionError, Timeout)):
+        return True
+
+    if isinstance(exception, RateLimitError):
+        message = str(exception).lower()
+        non_retryable_markers = (
+            "limit: 0",
+            "quota exceeded",
+            "billing details",
+            "resource_exhausted",
+        )
+        return not any(marker in message for marker in non_retryable_markers)
+
+    return False
 
 
 class ModuleLLM:
@@ -104,6 +135,24 @@ class ModuleLLM:
 
         return messages
 
+    def _build_completion_kwargs(
+        self,
+        messages: list[dict],
+        tool_schema: list[dict] | None = None,
+        tool_choice: str = "auto",
+        response_format: dict | object | None = None,
+    ) -> dict:
+        completion_kwargs = {
+            "model": self.llm_model,
+            "messages": messages,
+            "tools": tool_schema,
+            "tool_choice": tool_choice if tool_schema else None,
+            "response_format": response_format,
+        }
+        if self.api_base:
+            completion_kwargs["api_base"] = self.api_base
+        return completion_kwargs
+
     def _build_rate_limit_error(self, error: RateLimitError) -> RateLimitError:
         provider = self.llm_model.split("/", 1)[0].lower()
         docs_url = {
@@ -136,9 +185,42 @@ class ModuleLLM:
             num_retries=error.num_retries,
         )
 
+    def _build_not_found_error(self, error: NotFoundError) -> NotFoundError:
+        provider, _, model_name = self.llm_model.partition("/")
+        message_parts = [f"Model '{self.llm_model}' was not found."]
+
+        detail = error.message.removeprefix("litellm.NotFoundError: ").strip()
+        if detail:
+            message_parts.append(detail)
+
+        if provider.lower() == "gemini":
+            suggested_model = GEMINI_MODEL_SUGGESTIONS.get(model_name)
+            if suggested_model:
+                message_parts.append(
+                    f"The Gemini model '{model_name}' is no longer available via this API. "
+                    f"Try '{suggested_model}' instead."
+                )
+            else:
+                message_parts.append(
+                    "Check the current Gemini model name you have access to and update the "
+                    "value passed as '{provider}/{model}'."
+                )
+
+        return NotFoundError(
+            message=" ".join(message_parts),
+            model=error.model,
+            llm_provider=error.llm_provider,
+            response=error.response,
+            litellm_debug_info=error.litellm_debug_info,
+            max_retries=error.max_retries,
+            num_retries=error.num_retries,
+        )
+
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=60),
-        retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+        retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS)
+        & retry_if_exception(_should_retry_exception),
         reraise=True,
     )
     def generate(
@@ -162,21 +244,19 @@ class ModuleLLM:
         """
 
         messages = self._build_messages(prompt)
-
-        completion_kwargs = {
-            "model": self.llm_model,
-            "messages": messages,
-            "tools": tool_schema,
-            "tool_choice": tool_choice if tool_schema else None,
-            "response_format": response_format,
-        }
-        if self.api_base:
-            completion_kwargs["api_base"] = self.api_base
+        completion_kwargs = self._build_completion_kwargs(
+            messages=messages,
+            tool_schema=tool_schema,
+            tool_choice=tool_choice,
+            response_format=response_format,
+        )
 
         try:
             response = completion(**completion_kwargs)
         except RateLimitError as error:
             raise self._build_rate_limit_error(error) from error
+        except NotFoundError as error:
+            raise self._build_not_found_error(error) from error
 
         return response
 
@@ -193,22 +273,23 @@ class ModuleLLM:
         messages = self._build_messages(prompt)
         async for attempt in AsyncRetrying(
             wait=wait_exponential(multiplier=1, min=1, max=60),
-            retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+            retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS)
+            & retry_if_exception(_should_retry_exception),
             reraise=True,
         ):
             with attempt:
-                completion_kwargs = {
-                    "model": self.llm_model,
-                    "messages": messages,
-                    "tools": tool_schema,
-                    "tool_choice": tool_choice if tool_schema else None,
-                    "response_format": response_format,
-                }
-                if self.api_base:
-                    completion_kwargs["api_base"] = self.api_base
+                completion_kwargs = self._build_completion_kwargs(
+                    messages=messages,
+                    tool_schema=tool_schema,
+                    tool_choice=tool_choice,
+                    response_format=response_format,
+                )
 
                 try:
                     response = await acompletion(**completion_kwargs)
                 except RateLimitError as error:
                     raise self._build_rate_limit_error(error) from error
+                except NotFoundError as error:
+                    raise self._build_not_found_error(error) from error
         return response

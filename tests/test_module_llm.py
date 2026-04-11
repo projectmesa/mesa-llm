@@ -2,9 +2,9 @@ import os
 from unittest.mock import patch
 
 import pytest
-from litellm.exceptions import RateLimitError
+from litellm.exceptions import NotFoundError, RateLimitError
 
-from mesa_llm.module_llm import ModuleLLM
+from mesa_llm.module_llm import MAX_RETRY_ATTEMPTS, ModuleLLM
 
 
 class TestModuleLLM:
@@ -83,6 +83,37 @@ class TestModuleLLM:
         messages = llm._build_messages(prompt=None)
         assert messages == [{"role": "system", "content": ""}]
 
+    def test_build_completion_kwargs_preserves_tool_calling_configuration(self):
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+        messages = llm._build_messages("Hello, how are you?")
+        tool_schema = [{"type": "function", "function": {"name": "demo_tool"}}]
+
+        completion_kwargs = llm._build_completion_kwargs(
+            messages=messages,
+            tool_schema=tool_schema,
+            tool_choice="required",
+            response_format={"type": "json_object"},
+        )
+
+        assert completion_kwargs["model"] == "openai/gpt-4o"
+        assert completion_kwargs["messages"] == messages
+        assert completion_kwargs["tools"] == tool_schema
+        assert completion_kwargs["tool_choice"] == "required"
+        assert completion_kwargs["response_format"] == {"type": "json_object"}
+
+    def test_build_completion_kwargs_omits_tool_choice_without_tools(self):
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+        messages = llm._build_messages("Hello, how are you?")
+
+        completion_kwargs = llm._build_completion_kwargs(
+            messages=messages,
+            tool_schema=None,
+            tool_choice="required",
+        )
+
+        assert completion_kwargs["tools"] is None
+        assert completion_kwargs["tool_choice"] is None
+
     def test_generate(self, monkeypatch, llm_response_factory):
         monkeypatch.setattr(
             "mesa_llm.module_llm.completion", lambda **kwargs: llm_response_factory()
@@ -156,6 +187,74 @@ class TestModuleLLM:
             "https://ai.google.dev/gemini-api/docs/rate-limits LiteLLM Retried: "
             "3 times, LiteLLM Max Retries: 5"
         )
+
+    def test_generate_rewrites_gemini_not_found_error_with_model_hint(
+        self, monkeypatch
+    ):
+        original_error = NotFoundError(
+            'GeminiException - {"error": {"code": 404}}',
+            "gemini/gemini-1.5-pro",
+            "gemini",
+        )
+
+        def _raise_not_found(**kwargs):
+            raise original_error
+
+        monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_not_found)
+
+        llm = ModuleLLM(llm_model="gemini/gemini-1.5-pro")
+        with pytest.raises(NotFoundError) as exc_info:
+            ModuleLLM.generate.__wrapped__(llm, prompt="Hello, how are you?")
+
+        error_message = str(exc_info.value)
+        assert "Model 'gemini/gemini-1.5-pro' was not found." in error_message
+        assert "Try 'gemini/gemini-2.0-flash' instead." in error_message
+
+    def test_generate_does_not_retry_non_retryable_quota_exhaustion(self, monkeypatch):
+        attempts = 0
+        original_error = RateLimitError(
+            (
+                'geminiException - {"error": {"code": 429, "status": '
+                '"RESOURCE_EXHAUSTED", "message": "Quota exceeded. limit: 0. '
+                'Please check your plan and billing details."}}'
+            ),
+            "gemini",
+            "gemini/gemini-2.0-flash",
+        )
+
+        def _raise_rate_limit(**kwargs):
+            nonlocal attempts
+            attempts += 1
+            raise original_error
+
+        monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_rate_limit)
+
+        llm = ModuleLLM(llm_model="gemini/gemini-2.0-flash")
+        with pytest.raises(RateLimitError):
+            llm.generate(prompt="Hello, how are you?")
+
+        assert attempts == 1
+
+    def test_generate_retries_retryable_rate_limit_errors(self, monkeypatch):
+        attempts = 0
+        original_error = RateLimitError(
+            "per-minute limit hit",
+            "openai",
+            "openai/gpt-4o",
+        )
+
+        def _raise_rate_limit(**kwargs):
+            nonlocal attempts
+            attempts += 1
+            raise original_error
+
+        monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_rate_limit)
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+        with pytest.raises(RateLimitError):
+            llm.generate(prompt="Hello, how are you?")
+
+        assert attempts == MAX_RETRY_ATTEMPTS
 
     @pytest.mark.asyncio
     async def test_agenerate(self, monkeypatch, llm_response_factory):
