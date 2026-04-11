@@ -14,6 +14,8 @@ class LongTermMemory(Memory):
         agent : the agent that the memory belongs to
         display : whether to display the memory
         llm_model : the model to use for the summarization
+        additive_event_types : event types accumulated as lists within a step.
+            Defaults to ``{"message", "action"}``.
 
     """
 
@@ -22,7 +24,21 @@ class LongTermMemory(Memory):
         agent: "LLMAgent",
         display: bool = True,
         llm_model: str = "openai/gpt-4o-mini",
+        api_base: str | None = None,
+        additive_event_types: list[str] | set[str] | tuple[str, ...] | None = None,
     ):
+        """
+        Initialize long-term memory.
+
+        Args:
+            agent : the agent that owns this memory
+            display : whether memory entries should be displayed
+            llm_model : the model used for long-term summarization
+            api_base : the API base URL to use for the LLM provider
+            additive_event_types : event types that accumulate multiple values
+                within a step instead of overwriting. Defaults to
+                ``{"message", "action"}``.
+        """
         if not llm_model:
             raise ValueError(
                 "llm_model must be provided for the usage of long term memory"
@@ -31,7 +47,9 @@ class LongTermMemory(Memory):
         super().__init__(
             agent=agent,
             llm_model=llm_model,
+            api_base=api_base,
             display=display,
+            additive_event_types=additive_event_types,
         )
 
         self.long_term_memory = ""
@@ -93,10 +111,12 @@ class LongTermMemory(Memory):
             return
 
         elif self.buffer and self.buffer.step is None:
-            self.step_content.update(self.buffer.content)
+            merged_content = self._merge_step_contents(
+                self.step_content, self.buffer.content
+            )
             new_entry = MemoryEntry(
                 agent=self.agent,
-                content=self.step_content,
+                content=merged_content,
                 step=self.agent.model.steps,
             )
             self.buffer = new_entry
@@ -124,10 +144,12 @@ class LongTermMemory(Memory):
             return
 
         elif self.buffer and self.buffer.step is None:
-            self.step_content.update(self.buffer.content)
+            merged_content = self._merge_step_contents(
+                self.step_content, self.buffer.content
+            )
             new_entry = MemoryEntry(
                 agent=self.agent,
-                content=self.step_content,
+                content=merged_content,
                 step=self.agent.model.steps,
             )
             self.buffer = new_entry

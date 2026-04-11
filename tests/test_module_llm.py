@@ -2,6 +2,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+from litellm.exceptions import RateLimitError
 
 from mesa_llm.module_llm import ModuleLLM
 
@@ -108,6 +109,54 @@ class TestModuleLLM:
         )
         assert response is not None
 
+    def test_generate_rewrites_rate_limit_error_with_openai_docs(self, monkeypatch):
+        original_error = RateLimitError(
+            "per-minute limit hit", "openai", "openai/gpt-4o"
+        )
+
+        def _raise_rate_limit(**kwargs):
+            raise original_error
+
+        monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_rate_limit)
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+        with pytest.raises(RateLimitError) as exc_info:
+            ModuleLLM.generate.__wrapped__(llm, prompt="Hello, how are you?")
+
+        assert str(exc_info.value) == (
+            "litellm.RateLimitError: Rate limit exceeded for model "
+            "'openai/gpt-4o'. per-minute limit hit Please wait a few minutes and "
+            "try again, or switch to a different model. To check your quota visit: "
+            "https://developers.openai.com/api/docs/guides/rate-limits"
+        )
+
+    def test_generate_rewrites_rate_limit_error_with_gemini_docs(self, monkeypatch):
+        original_error = RateLimitError(
+            'geminiException - {"error": {"code": 429}}',
+            "gemini",
+            "gemini/gemini-2.0-flash",
+            max_retries=5,
+            num_retries=3,
+        )
+
+        def _raise_rate_limit(**kwargs):
+            raise original_error
+
+        monkeypatch.setattr("mesa_llm.module_llm.completion", _raise_rate_limit)
+
+        llm = ModuleLLM(llm_model="gemini/gemini-2.0-flash")
+        with pytest.raises(RateLimitError) as exc_info:
+            ModuleLLM.generate.__wrapped__(llm, prompt="Hello, how are you?")
+
+        assert str(exc_info.value) == (
+            "litellm.RateLimitError: Rate limit exceeded for model "
+            '\'gemini/gemini-2.0-flash\'. geminiException - {"error": {"code": '
+            "429}} Please wait a few minutes and try again, or switch to a "
+            "different model. To check your quota visit: "
+            "https://ai.google.dev/gemini-api/docs/rate-limits LiteLLM Retried: "
+            "3 times, LiteLLM Max Retries: 5"
+        )
+
     @pytest.mark.asyncio
     async def test_agenerate(self, monkeypatch, llm_response_factory):
         async def _dummy_acompletion(**kwargs):
@@ -124,3 +173,49 @@ class TestModuleLLM:
             prompt=["Hello, how are you?", "What is the weather in Tokyo?"]
         )
         assert response is not None
+
+    @pytest.mark.asyncio
+    async def test_agenerate_rewrites_rate_limit_error_with_openrouter_docs(
+        self, monkeypatch
+    ):
+        class _SingleAttempt:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        class _SingleAsyncRetrying:
+            def __init__(self, **kwargs):
+                self._yielded = False
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                if self._yielded:
+                    raise StopAsyncIteration
+                self._yielded = True
+                return _SingleAttempt()
+
+        async def _raise_rate_limit(**kwargs):
+            raise RateLimitError(
+                "provider throttle triggered",
+                "openrouter",
+                "openrouter/openai/gpt-4o",
+            )
+
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test_openrouter_key")
+        monkeypatch.setattr("mesa_llm.module_llm.AsyncRetrying", _SingleAsyncRetrying)
+        monkeypatch.setattr("mesa_llm.module_llm.acompletion", _raise_rate_limit)
+
+        llm = ModuleLLM(llm_model="openrouter/openai/gpt-4o")
+        with pytest.raises(RateLimitError) as exc_info:
+            await llm.agenerate(prompt="Hello, how are you?")
+
+        assert str(exc_info.value) == (
+            "litellm.RateLimitError: Rate limit exceeded for model "
+            "'openrouter/openai/gpt-4o'. provider throttle triggered Please wait a "
+            "few minutes and try again, or switch to a different model. To check "
+            "your quota visit: https://openrouter.ai/docs/api/reference/limits"
+        )

@@ -82,7 +82,7 @@ def make_short_term_memory():
     memory.n = 5
     memory.short_term_memory = deque()
     memory.step_content = {}
-    memory.last_observation = {}
+    memory.additive_event_types = {"message", "action"}
     memory.display = False
     memory.agent = temp_agent
     return memory

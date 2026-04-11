@@ -93,7 +93,7 @@ def llm_response_factory():
 @pytest.fixture
 def basic_model():
     """Create basic model without grid"""
-    return Model(seed=42)
+    return Model(rng=42)
 
 
 @pytest.fixture
@@ -102,7 +102,7 @@ def grid_model():
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(10, 10, torus=False)
 
     return GridModel()

@@ -29,6 +29,7 @@ class NegotiationModel(Model):
         reasoning: type[Reasoning],
         llm_model: str,
         vision: int,
+        api_base: str | None = None,
         seed=None,
         parallel_stepping=True,
     ):
@@ -51,6 +52,7 @@ class NegotiationModel(Model):
             vision=vision,
             internal_state=buyer_internal_state,
             budget=50,  # Each buyer has a budget of $50
+            api_base=api_base,
         )
 
         x = self.rng.integers(0, self.grid.width, size=(initial_buyers,))
@@ -67,6 +69,7 @@ class NegotiationModel(Model):
             vision=vision,
             internal_state=buyer_internal_state,
             budget=100,
+            api_base=api_base,
         )
 
         x = self.rng.integers(0, self.grid.width, size=(initial_buyers,))
@@ -82,6 +85,7 @@ class NegotiationModel(Model):
             system_prompt="You are a Seller in a negotiation game trying to sell shoes($40) and track suit($50) of brand A. You are trying to pitch your product to the Buyer type Agents. You are extremely good at persuading, and have good sales skills. You are also hardworking and dedicated to your work. To do any action, you must use the tools provided to you.",
             vision=vision,
             internal_state=["hardworking", "dedicated", "persuasive"],
+            api_base=api_base,
         )
         self.grid.place_agent(
             seller_a,
@@ -97,6 +101,7 @@ class NegotiationModel(Model):
             system_prompt="You are a Seller in a negotiation game trying to sell shoes($35) and track suit($47) of brand B. You are trying to pitch your product to the Buyer type Agents. You are not interested in your work and are doing it for the sake of doing. To do any action, you must use the tools provided to you.",
             vision=vision,
             internal_state=["lazy", "unmotivated"],
+            api_base=api_base,
         )
         self.grid.place_agent(
             seller_b,

@@ -15,7 +15,7 @@ from mesa_llm.parallel_stepping import (
 
 class DummyModel(Model):
     def __init__(self):
-        super().__init__(seed=42)
+        super().__init__(rng=42)
         self.parallel_stepping = False
 
 

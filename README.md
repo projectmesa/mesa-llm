@@ -12,7 +12,7 @@ Mesa-LLM integrates large language models (LLMs) as decision-making agents into 
 > **⚠️ WARNING ⚠️**
 > This repository is currently under active development. The API and functionality may change significantly. Please stay tuned for our first release coming soon!
 
-## Using Mesa-LLM
+## Installation
 
 To install Mesa-LLM, run:
 ```bash
@@ -30,7 +30,7 @@ pip install -U -e git+https://github.com/mesa/mesa-llm.git#egg=mesa-llm
 ```
 
 Or any other (development) branch on this repo or your own fork:
-``` bash
+```bash
 pip install -U -e git+https://github.com/YOUR_FORK/mesa-llm@YOUR_BRANCH#egg=mesa-llm
 ```
 
@@ -41,32 +41,32 @@ For more help on using Mesa-LLM, check out the following resources:
 - [Mesa-LLM Discussions](https://github.com/mesa/mesa-llm/discussions)
 - [PyPI](https://pypi.org/project/mesa-llm/)
 
-## Using Mesa-LLM
+## Supported LLM Providers
 
-Mesa-LLM supports the following LLM models :
+Mesa-LLM supports the following LLM providers:
 
 - OpenAI
 - Anthropic
 - xAI
-- Huggingface
+- Hugging Face
 - Ollama
 - OpenRouter
-- NovitaAI
-- Gemini
+- Novita AI
+- Google Gemini
 
 
 ## Contributing to Mesa-LLM
 
-Want to join the team or just curious about what is happening with Mesa & Mesa-LLM? You can...
+Want to join the team, or just curious about what is happening with Mesa and Mesa-LLM? You can:
 
-  * Join our [Matrix chat room](https://matrix.to/#/#mesa-llm:matrix.org) in which questions, issues, and ideas can be (informally) discussed.
-  * Come to a monthly dev session (you can find dev session times, agendas and notes at [Mesa discussions](https://github.com/mesa/mesa/discussions).
-  * Just check out the code at [GitHub](https://github.com/mesa/mesa-llm/).
+- Join our [Matrix chat room](https://matrix.to/#/#mesa-llm:matrix.org) where questions, issues, and ideas can be discussed informally.
+- Come to a monthly dev session (you can find dev session times, agendas, and notes at [Mesa discussions](https://github.com/mesa/mesa/discussions)).
+- Check out the code on [GitHub](https://github.com/mesa/mesa-llm/).
 
 If you run into an issue, please file a [ticket](https://github.com/mesa/mesa-llm/issues) for us to discuss. If possible, follow up with a pull request.
 
-If you would like to add a feature, please reach out via [ticket](https://github.com/mesa/mesa-llm/issues) or join a dev session (see [Mesa discussions](https://github.com/mesa/mesa/discussions)).
+If you would like to add a feature, please reach out via a [ticket](https://github.com/mesa/mesa-llm/issues) or join a dev session (see [Mesa discussions](https://github.com/mesa/mesa/discussions)).
 
 A feature is most likely to be added if you build it!
 
-Don't forget to check out the [Contributors guide](https://github.com/mesa/mesa-llm/blob/main/CONTRIBUTING.md).
+Don't forget to check out the [Contributors Guide](https://github.com/mesa/mesa-llm/blob/main/CONTRIBUTING.md).

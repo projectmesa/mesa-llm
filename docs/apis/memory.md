@@ -9,17 +9,17 @@ from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 
 class MyAgent(LLMAgent):
-   def __init__(self, model, api_key, reasoning, **kwargs):
-      super().__init__(model, api_key, reasoning, **kwargs)
+   def __init__(self, model, reasoning, **kwargs):
+      super().__init__(model, reasoning, **kwargs)
 
       # Override default memory with custom configuration
       self.memory = STLTMemory(
             agent=self,
             short_term_capacity=10,    # Store 10 recent experiences
             consolidation_capacity=3, # Consolidate when 13 total entries
-            api_key=api_key,
             llm_model="openai/gpt-4o-mini",
-            display=True            # Display the memory entries in the console when they are added to the memory
+            display=True,             # Display the memory entries in the console when they are added to the memory
+            api_base=None,            # Set to a custom URL for self-hosted LLMs
       )
 ```
 
