@@ -580,4 +580,4 @@ class TestEpisodicMemory:
         memory.memory_entries.append(entry)
 
         history = memory.get_communication_history()
-        assert "step 5 - Alice: Hello World" in history
+        assert "Step 5: Agent Alice says: Hello World" in history
