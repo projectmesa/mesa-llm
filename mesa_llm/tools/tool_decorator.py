@@ -25,6 +25,45 @@ def add_tool_callback(callback: Callable[[Callable], None]):
     _TOOL_CALLBACKS.append(callback)
 
 
+def requires(
+    check: Callable[..., bool],
+    reason: str = "Precondition not met",
+):
+    """Attach a feasibility check to a tool function.
+
+    When the ToolManager builds filtered schemas, every ``@requires``
+    check is evaluated.  If **any** check returns ``False`` the tool is
+    considered infeasible for that agent at that time.
+
+    Multiple ``@requires`` decorators can be stacked — they accumulate
+    as a list on ``fn.__tool_requires__``.
+
+    Args:
+        check: A callable ``(agent) -> bool``.  Receives the calling
+            agent and returns whether the precondition is satisfied.
+        reason: A short human-readable explanation shown to the LLM
+            when the tool is annotated as unavailable.
+
+    Returns:
+        The decorated function (unchanged except for the attached
+        metadata).
+
+    Example::
+
+        @tool
+        @requires(lambda agent: agent.pos is not None, reason="Agent has no position")
+        def move_one_step(agent, direction): ...
+    """
+
+    def decorator(fn: Callable) -> Callable:
+        if not hasattr(fn, "__tool_requires__"):
+            fn.__tool_requires__ = []
+        fn.__tool_requires__.append({"check": check, "reason": reason})
+        return fn
+
+    return decorator
+
+
 # ---------- helper functions ----------------------------------------------------
 class DocstringParsingError(Exception):
     """Raised when a Google-style docstring cannot be parsed."""

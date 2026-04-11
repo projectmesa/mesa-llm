@@ -11,7 +11,7 @@ from mesa.space import (
     SingleGrid,
 )
 
-from mesa_llm.tools.tool_decorator import tool
+from mesa_llm.tools.tool_decorator import requires, tool
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -64,6 +64,20 @@ def _get_agent_position(agent: "LLMAgent") -> Any:
 
 
 @tool
+@requires(
+    lambda agent: (
+        getattr(agent, "pos", None) is not None
+        or getattr(getattr(agent, "cell", None), "coordinate", None) is not None
+    ),
+    reason="Agent has no position",
+)
+@requires(
+    lambda agent: (
+        getattr(agent.model, "grid", None) is not None
+        or getattr(agent.model, "space", None) is not None
+    ),
+    reason="Model has no grid or space",
+)
 def move_one_step(agent: "LLMAgent", direction: str) -> str:
     """
     Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including SingleGrid, MultiGrid, OrthogonalGrids, and ContinuousSpace.
@@ -154,6 +168,13 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
 
 
 @tool
+@requires(
+    lambda agent: (
+        getattr(agent.model, "grid", None) is not None
+        or getattr(agent.model, "space", None) is not None
+    ),
+    reason="Model has no grid or space",
+)
 def teleport_to_location(
     agent: "LLMAgent",
     target_coordinates: list[int | float],

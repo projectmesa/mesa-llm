@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from mesa.agent import Agent
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
@@ -90,6 +92,24 @@ class LLMAgent(Agent):
 
     def __str__(self):
         return f"LLMAgent {self.unique_id}"
+
+    def tool_filter(self, tool_name: str, tool_fn: Callable) -> bool:
+        """Determine whether a tool is available for this agent.
+
+        Override in subclasses to dynamically exclude tools based on
+        agent state.  Called by ``ToolManager.get_feasible_tools_schema``
+        and ``ToolManager.get_annotated_tools_schema`` *after* the
+        tool-level ``@requires`` checks have passed.
+
+        Args:
+            tool_name: The registered name of the tool.
+            tool_fn: The tool function object.
+
+        Returns:
+            ``True`` if the tool should be available, ``False`` to
+            exclude it.
+        """
+        return True
 
     async def aapply_plan(self, plan: Plan) -> list[dict]:
         """

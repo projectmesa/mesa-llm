@@ -114,8 +114,8 @@ class Reasoning(ABC):
         self.agent.llm.system_prompt = system_prompt
         rsp = self.agent.llm.generate(
             prompt=chaining_message,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(
-                selected_tools=selected_tools
+            tool_schema=self.agent.tool_manager.get_feasible_tools_schema(
+                agent=self.agent, selected_tools=selected_tools
             ),
             tool_choice="required",
         )
@@ -137,8 +137,8 @@ class Reasoning(ABC):
         self.agent.llm.system_prompt = system_prompt
         rsp = await self.agent.llm.agenerate(
             prompt=chaining_message,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(
-                selected_tools=selected_tools
+            tool_schema=self.agent.tool_manager.get_feasible_tools_schema(
+                agent=self.agent, selected_tools=selected_tools
             ),
             tool_choice="required",
         )

@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import copy
 import inspect
 import json
 import logging
@@ -77,6 +78,86 @@ class ToolManager:
 
         else:
             return [fn.__tool_schema__ for fn in self.tools.values()]
+
+    def _check_tool_feasibility(
+        self, tool_name: str, tool_fn: Callable, agent: "LLMAgent"
+    ) -> tuple[bool, str | None]:
+        """Check whether a tool is feasible for the given agent.
+
+        Evaluates two layers:
+        1. Tool-level ``@requires`` decorators (structural preconditions).
+        2. Agent-level ``tool_filter()`` method (behavioral state).
+
+        Returns:
+            A tuple of ``(is_feasible, reason)``.  *reason* is ``None``
+            when feasible, or a human-readable string when not.
+        """
+        # Layer 1 — tool-level @requires checks
+        requirements = getattr(tool_fn, "__tool_requires__", [])
+        for req in requirements:
+            try:
+                if not req["check"](agent):
+                    return False, req["reason"]
+            except Exception:
+                # If the check itself errors (e.g. missing attribute),
+                # treat the tool as infeasible.
+                return False, req["reason"]
+
+        # Layer 2 — agent-level tool_filter() override
+        tool_filter = getattr(agent, "tool_filter", None)
+        if (
+            tool_filter is not None
+            and callable(tool_filter)
+            and not tool_filter(tool_name, tool_fn)
+        ):
+            return False, "Filtered by agent"
+
+        return True, None
+
+    def get_feasible_tools_schema(
+        self, agent: "LLMAgent", selected_tools: list[str] | None = None
+    ) -> list[dict]:
+        """Return schemas only for tools the agent can currently use.
+
+        Infeasible tools are excluded entirely from the returned list.
+        Intended for **executor** LLM calls where ``tool_choice="required"``
+        and the LLM must not attempt infeasible actions.
+        """
+        schemas: list[dict] = []
+        for name, fn in self.tools.items():
+            if selected_tools and name not in selected_tools:
+                continue
+            is_feasible, _ = self._check_tool_feasibility(name, fn, agent)
+            if is_feasible:
+                schemas.append(fn.__tool_schema__)
+        return schemas
+
+    def get_annotated_tools_schema(
+        self, agent: "LLMAgent", selected_tools: list[str] | None = None
+    ) -> list[dict]:
+        """Return all tool schemas with unavailable ones annotated.
+
+        Infeasible tools have their description prefixed with
+        ``[UNAVAILABLE: reason]`` so the LLM planner can reason about
+        *why* an action is blocked and plan alternatives.  Intended for
+        **planner** LLM calls where ``tool_choice="none"``.
+        """
+        schemas: list[dict] = []
+        for name, fn in self.tools.items():
+            if selected_tools and name not in selected_tools:
+                continue
+            is_feasible, reason = self._check_tool_feasibility(name, fn, agent)
+            if is_feasible:
+                schemas.append(fn.__tool_schema__)
+            else:
+                # Deep-copy to avoid mutating the original schema
+                annotated = copy.deepcopy(fn.__tool_schema__)
+                original_desc = annotated["function"].get("description", "")
+                annotated["function"]["description"] = (
+                    f"[UNAVAILABLE: {reason}] {original_desc}"
+                )
+                schemas.append(annotated)
+        return schemas
 
     def call(self, name: str, arguments: dict) -> str:
         """Call a registered tool with validated args"""

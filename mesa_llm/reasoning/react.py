@@ -82,8 +82,8 @@ class ReActReasoning(Reasoning):
         else:
             raise ValueError("No prompt provided and agent.step_prompt is None.")
 
-        selected_tools_schema = self.agent.tool_manager.get_all_tools_schema(
-            selected_tools
+        selected_tools_schema = self.agent.tool_manager.get_annotated_tools_schema(
+            agent=self.agent, selected_tools=selected_tools
         )
 
         # ---------------- generate the plan ----------------
@@ -132,8 +132,8 @@ class ReActReasoning(Reasoning):
         else:
             raise ValueError("No prompt provided and agent.step_prompt is None.")
 
-        selected_tools_schema = self.agent.tool_manager.get_all_tools_schema(
-            selected_tools
+        selected_tools_schema = self.agent.tool_manager.get_annotated_tools_schema(
+            agent=self.agent, selected_tools=selected_tools
         )
 
         # ---------------- generate the plan ----------------

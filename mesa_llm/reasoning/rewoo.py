@@ -137,7 +137,9 @@ class ReWOOReasoning(Reasoning):
         llm.system_prompt = system_prompt
         rsp = llm.generate(
             prompt=prompt,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
+            tool_schema=self.agent.tool_manager.get_annotated_tools_schema(
+                agent=self.agent, selected_tools=selected_tools
+            ),
             tool_choice="none",
         )
 
@@ -197,7 +199,9 @@ class ReWOOReasoning(Reasoning):
         llm.system_prompt = system_prompt
         rsp = await llm.agenerate(
             prompt=prompt,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
+            tool_schema=self.agent.tool_manager.get_annotated_tools_schema(
+                agent=self.agent, selected_tools=selected_tools
+            ),
             tool_choice="none",
         )
 

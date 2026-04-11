@@ -52,7 +52,7 @@ class TestReasoningBase:
         mock_agent.llm.generate.return_value = mock_llm_response
 
         # Mock the Tool Manager
-        mock_agent.tool_manager.get_all_tools_schema.return_value = [
+        mock_agent.tool_manager.get_feasible_tools_schema.return_value = [
             {"schema": "example"}
         ]
 
@@ -77,8 +77,8 @@ class TestReasoningBase:
             tool_choice="required",
         )
         # Assert that the tool manager was asked for the correct schema
-        mock_agent.tool_manager.get_all_tools_schema.assert_called_once_with(
-            selected_tools=["tool1"]
+        mock_agent.tool_manager.get_feasible_tools_schema.assert_called_once_with(
+            agent=mock_agent, selected_tools=["tool1"]
         )
         # Assert that the output is a correctly formed Plan object
         assert isinstance(result_plan, Plan)
@@ -94,7 +94,7 @@ class TestReasoningBase:
         mock_llm_response.choices = [Mock()]
         mock_llm_response.choices[0].message = "Final LLM message"
         mock_agent.llm.generate.return_value = mock_llm_response
-        mock_agent.tool_manager.get_all_tools_schema.return_value = []
+        mock_agent.tool_manager.get_feasible_tools_schema.return_value = []
 
         class ConcreteReasoning(Reasoning):
             def plan(self, prompt=None, obs=None, ttl=1, selected_tools=None):
