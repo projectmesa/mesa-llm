@@ -27,6 +27,7 @@ def mock_environment():
             "GEMINI_API_KEY": "test_gemini_key",
             "PROVIDER_API_KEY": "test_key",
             "OPENAI_API_KEY": "test_openai_key",
+            "TEST_API_KEY": "test_key",
         },
         clear=True,
     ):
