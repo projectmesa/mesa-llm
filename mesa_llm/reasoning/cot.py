@@ -135,7 +135,9 @@ class CoTReasoning(Reasoning):
         rsp = llm.generate(
             prompt=chaining_message,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
-            tool_choice="required",
+            tool_choice="required"
+            if self.agent.tool_manager.get_all_tools_schema(selected_tools)
+            else "none",
         )
         response_message = rsp.choices[0].message
         cot_plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
@@ -195,7 +197,9 @@ class CoTReasoning(Reasoning):
         rsp = await llm.agenerate(
             prompt=chaining_message,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
-            tool_choice="required",
+            tool_choice="required"
+            if self.agent.tool_manager.get_all_tools_schema(selected_tools)
+            else "none",
         )
         response_message = rsp.choices[0].message
         cot_plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
