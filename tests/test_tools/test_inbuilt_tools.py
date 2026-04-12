@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -170,10 +171,8 @@ def test_speak_to_records_on_recipients(mocker):
     content = kwargs["content"]
     assert content["message"] == message
     assert content["sender"] == sender.unique_id
-    assert set(content["recipients"]) == {11, 12}
-
-    # Return string contains sender and recipients list
-    assert "10" in ret and "11" in ret and "12" in ret and message in ret
+    assert "recipients" not in content
+    assert ret == "sent message 'Hello there' to [11, 12]"
 
 
 def test_move_one_step_invalid_direction():
@@ -582,3 +581,63 @@ def test_move_one_step_torus_wrap_orthogonal_grid():
 
     assert agent.cell is wrapped_cell
     assert result == "agent 29 moved to (2, 2)."
+
+
+def test_speak_to_skips_non_llm_recipient(mocker):
+    """
+    speak_to must not crash when a recipient has no memory attribute.
+
+    This covers the case where a non-LLM (rule-based) agent is listed as a
+    recipient.
+    """
+    model = DummyModel()
+
+    sender = DummyAgent(unique_id=1, model=model)
+    llm_recipient = DummyAgent(unique_id=2, model=model)
+    rule_recipient = DummyAgent(unique_id=3, model=model)
+
+    llm_recipient.memory = SimpleNamespace(add_to_memory=mocker.Mock())
+
+    model.agents = [sender, llm_recipient, rule_recipient]
+
+    ret = speak_to(sender, [2, 3], "Hello both")
+
+    llm_recipient.memory.add_to_memory.assert_called_once()
+    call_kwargs = llm_recipient.memory.add_to_memory.call_args[1]
+    assert call_kwargs["type"] == "message"
+    assert call_kwargs["content"]["message"] == "Hello both"
+    assert "recipients" not in call_kwargs["content"]
+
+    assert ret == (
+        "sent message 'Hello both' to [2]; skipped [3] because they have no `memory` attribute"
+    )
+
+
+def test_speak_to_warns_for_non_llm_recipient(mocker, caplog):
+    model = DummyModel()
+    sender = DummyAgent(unique_id=10, model=model)
+    rule_recipient = DummyAgent(unique_id=11, model=model)  # no .memory
+
+    model.agents = [sender, rule_recipient]
+
+    with caplog.at_level(logging.WARNING, logger="mesa_llm.tools.inbuilt_tools"):
+        ret = speak_to(sender, [11], "Test message")
+
+    assert any(
+        "11" in record.message and "memory" in record.message
+        for record in caplog.records
+    )
+    assert ret == "skipped [11] because they have no `memory` attribute"
+
+
+def test_speak_to_returns_clear_message_when_no_valid_recipients():
+    model = DummyModel()
+    sender = DummyAgent(unique_id=20, model=model)
+
+    model.agents = [sender]
+
+    ret = speak_to(sender, [20, 999], "Anyone there?")
+
+    assert (
+        ret == "Could not send message 'Anyone there?': no matching recipients found."
+    )

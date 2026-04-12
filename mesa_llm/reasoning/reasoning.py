@@ -61,8 +61,8 @@ class Reasoning(ABC):
         - **agent** (LLMAgent reference)
 
     Methods:
-        - **abstract plan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate synchronous plan
-        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan
+        - **abstract plan(prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto")** → *Plan* - Generate synchronous plan
+        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto")** → *Plan* - Generate asynchronous plan
 
 
     Reasoning Flow:
@@ -83,8 +83,38 @@ class Reasoning(ABC):
         obs: Observation | None = None,
         ttl: int = 1,
         selected_tools: list[str] | None = None,
+        tool_calls: str | None = "auto",
     ) -> Plan:
-        pass
+        """Generate a plan for the next action.
+
+        Args:
+            prompt: Optional prompt override for the reasoning strategy.
+            obs: Optional observation to plan against.
+            ttl: Time-to-live for the generated plan.
+            selected_tools: Optional explicit tool allowlist forwarded to
+                ``ToolManager.get_all_tools_schema()``. If omitted or ``None``,
+                the default behavior exposes all tools. ``[]`` exposes no
+                tools, and a non-empty list restricts planning/execution to
+                the named tools.
+            tool_calls: Execution-phase LiteLLM ``tool_choice`` override used
+                when converting the natural-language plan into tool calls.
+                Planning still keeps tool use disabled.
+
+                Supported values in Mesa-LLM are:
+                - ``None``: defer to LiteLLM/provider default behavior. In
+                  practice, this usually means no tool calls when no tools are
+                  provided and behavior similar to ``"auto"`` when tools are
+                  available.
+                - ``"none"``: never return tool calls; return a normal
+                  assistant message instead.
+                - ``"auto"``: allow the model to either return a normal
+                  assistant message or call one or more tools.
+                - ``"required"``: require the model to call one or more tools.
+
+                Mesa-LLM currently exposes only these string choices, not
+                provider-specific object forms. See LiteLLM docs:
+                https://docs.litellm.ai/
+        """
 
     async def aplan(
         self,
@@ -92,16 +122,23 @@ class Reasoning(ABC):
         obs: Observation | None = None,
         ttl: int = 1,
         selected_tools: list[str] | None = None,
+        tool_calls: str | None = "auto",
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
         Default implementation calls the synchronous plan() method.
+
+        ``selected_tools`` follows the same contract as ``plan()``: omitting
+        it or passing ``None`` uses the default behavior of exposing all
+        tools, ``[]`` exposes no tools, and a non-empty list restricts
+        planning/execution to the named tools.
         """
         return self.plan(
             prompt=prompt,
             obs=obs,
             ttl=ttl,
             selected_tools=selected_tools,
+            tool_calls=tool_calls,
         )
 
     def execute_tool_call(
@@ -109,18 +146,51 @@ class Reasoning(ABC):
         chaining_message,
         selected_tools: list[str] | None = None,
         ttl: int = 1,
+        tool_calls: str | None = "auto",
     ):
-        system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
+        """Turn a natural-language plan into tool calls.
+
+        Args:
+            chaining_message: Natural-language plan or action text to execute.
+            selected_tools: Optional explicit tool allowlist forwarded to
+                ``ToolManager.get_all_tools_schema()``. Omitting it or passing
+                ``None`` uses the default behavior of exposing all tools,
+                ``[]`` exposes no tools, and a non-empty list restricts
+                execution to the named tools.
+            ttl: Time-to-live for the returned plan.
+            tool_calls: LiteLLM ``tool_choice`` passed to the execution call.
+                Supported values in Mesa-LLM are:
+                - ``None``: defer to LiteLLM/provider default behavior. In
+                  practice, this usually means no tool calls when no tools are
+                  provided and behavior similar to ``"auto"`` when tools are
+                  available.
+                - ``"none"``: never return tool calls; return a normal
+                  assistant message instead.
+                - ``"auto"``: allow the model to either return a normal
+                  assistant message or call one or more tools.
+                - ``"required"``: require the model to call one or more tools.
+
+                Mesa-LLM currently exposes only these string choices, not
+                provider-specific object forms. See LiteLLM docs:
+                https://docs.litellm.ai/
+        """
+        system_prompt = (
+            "You are an executor that executes the plan given to you in the prompt through tool calls. "
+            "If the plan concludes that no action should be taken, do not call any tool."
+        )
         self.agent.llm.system_prompt = system_prompt
         rsp = self.agent.llm.generate(
             prompt=chaining_message,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(
                 selected_tools=selected_tools
             ),
-            tool_choice="required",
+            tool_choice=tool_calls,
         )
         response_message = rsp.choices[0].message
         plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        self.agent.memory.add_to_memory(
+            type="plan_execution", content={"content": str(plan)}
+        )
 
         return plan
 
@@ -129,20 +199,32 @@ class Reasoning(ABC):
         chaining_message,
         selected_tools: list[str] | None = None,
         ttl: int = 1,
+        tool_calls: str | None = "auto",
     ):
         """
         Asynchronous version of execute_tool_call() method.
+
+        ``selected_tools`` follows the same contract as
+        ``execute_tool_call()``: omitting it or passing ``None`` uses the
+        default behavior of exposing all tools, ``[]`` exposes no tools, and
+        a non-empty list restricts execution to the named tools.
         """
-        system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
+        system_prompt = (
+            "You are an executor that executes the plan given to you in the prompt through tool calls. "
+            "If the plan concludes that no action should be taken, do not call any tool."
+        )
         self.agent.llm.system_prompt = system_prompt
         rsp = await self.agent.llm.agenerate(
             prompt=chaining_message,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(
                 selected_tools=selected_tools
             ),
-            tool_choice="required",
+            tool_choice=tool_calls,
         )
         response_message = rsp.choices[0].message
         plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        await self.agent.memory.aadd_to_memory(
+            type="plan_execution", content={"content": str(plan)}
+        )
 
         return plan

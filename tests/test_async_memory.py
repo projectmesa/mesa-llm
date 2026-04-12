@@ -25,10 +25,12 @@ class MockModel:
 
 
 class MockReasoning(Reasoning):
-    def plan(self, prompt, obs=None, ttl=1, selected_tools=None):
+    def plan(self, prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto"):
         return MagicMock()
 
-    async def aplan(self, prompt, obs=None, ttl=1, selected_tools=None):
+    async def aplan(
+        self, prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto"
+    ):
         return MagicMock()
 
 

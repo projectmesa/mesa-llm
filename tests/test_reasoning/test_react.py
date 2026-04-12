@@ -98,6 +98,7 @@ class TestReActReasoning:
             "custom_action",
             selected_tools=None,
             ttl=1,
+            tool_calls="auto",
         )
 
     def test_plan_with_selected_tools(self, llm_response_factory, mock_agent):
@@ -130,6 +131,37 @@ class TestReActReasoning:
             "test_action",
             selected_tools=selected_tools,
             ttl=3,
+            tool_calls="auto",
+        )
+
+    def test_plan_with_custom_tool_calls(self, llm_response_factory, mock_agent):
+        """Test plan method forwards a custom execution tool choice."""
+        mock_agent.step_prompt = "Default step prompt"
+        mock_agent.memory = Mock()
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
+        mock_agent.memory.get_communication_history.return_value = ""
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+
+        mock_agent.llm.generate.return_value = llm_response_factory(
+            content=json.dumps({"reasoning": "Test reasoning", "action": "test_action"})
+        )
+
+        mock_plan = Plan(step=1, llm_plan=Mock())
+        reasoning = ReActReasoning(mock_agent)
+        reasoning.execute_tool_call = Mock(return_value=mock_plan)
+
+        obs = Observation(step=1, self_state={}, local_state={})
+        result = reasoning.plan(obs=obs, tool_calls="required")
+
+        assert result == mock_plan
+        reasoning.execute_tool_call.assert_called_once_with(
+            "test_action",
+            selected_tools=None,
+            ttl=1,
+            tool_calls="required",
         )
 
     def test_plan_no_prompt_error(self, mock_agent):
@@ -183,6 +215,7 @@ class TestReActReasoning:
             "async_action",
             selected_tools=None,
             ttl=4,
+            tool_calls="auto",
         )
 
     def test_aplan_no_prompt_error(self, mock_agent):

@@ -22,6 +22,7 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
         spice=0,
         metabolism_sugar=1,
         metabolism_spice=1,
+        api_base=None,
     ):
         super().__init__(
             model=model,
@@ -31,6 +32,7 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
             vision=vision,
             internal_state=internal_state,
             step_prompt=step_prompt,
+            api_base=api_base,
         )
         self.sugar = sugar
         self.spice = spice
@@ -43,7 +45,8 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
         self.memory = STLTMemory(
             agent=self,
             display=True,
-            llm_model="openai/gpt-4o-mini",
+            llm_model=llm_model,
+            api_base=api_base,
         )
 
         self.tool_manager = trader_tool_manager

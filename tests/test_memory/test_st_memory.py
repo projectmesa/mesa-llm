@@ -157,3 +157,68 @@ class TestShortTermMemory:
         memory.step_content = {"action": "after_step_4"}
         memory.process_step(pre_step=False)
         assert [entry.step for entry in memory.short_term_memory] == [2, 3, 4]
+
+    def test_get_communication_history_nested_dict(self, mock_agent):
+        """
+        Regression test: get_communication_history must produce readable text when
+        the message entry is a nested dict (produced by speak_to).
+
+        speak_to calls:
+            add_to_memory(type="message", content={"message": <text>, "sender": <id>, ...})
+
+        Memory.add_to_memory stores this under step_content["message"], so:
+            entry.content = {"message": {"message": <text>, "sender": <id>, "recipients": [...]}}
+
+        The fixed code must render "Agent <id> says: <text>", not a raw dict.
+        """
+        memory = ShortTermMemory(agent=mock_agent, display=False)
+
+        entry = MemoryEntry(
+            content={
+                "message": {"message": "status update", "sender": 12, "recipients": [3]}
+            },
+            step=7,
+            agent=mock_agent,
+        )
+        memory.short_term_memory.append(entry)
+
+        history = memory.get_communication_history()
+        assert history == "Step 7: Agent 12 says: status update\n\n"
+
+    def test_get_communication_history_skips_non_message_entries(self, mock_agent):
+        """Entries without a 'message' key are excluded from communication history."""
+        memory = ShortTermMemory(agent=mock_agent, display=False)
+
+        entry_obs = MemoryEntry(
+            content={"observation": "watching"},
+            step=1,
+            agent=mock_agent,
+        )
+        entry_msg = MemoryEntry(
+            content={
+                "message": {"message": "over here", "sender": 2, "recipients": []}
+            },
+            step=2,
+            agent=mock_agent,
+        )
+        memory.short_term_memory.extend([entry_obs, entry_msg])
+
+        history = memory.get_communication_history()
+
+        assert "over here" in history
+        assert "watching" not in history
+
+    def test_get_communication_history_returns_empty_string_when_no_messages(
+        self, mock_agent
+    ):
+        """Returns empty string when no entries contain a 'message' key."""
+        memory = ShortTermMemory(agent=mock_agent, display=False)
+
+        entry = MemoryEntry(
+            content={"observation": "nothing happening"},
+            step=1,
+            agent=mock_agent,
+        )
+        memory.short_term_memory.append(entry)
+
+        assert memory.get_communication_history() == ""

@@ -74,21 +74,49 @@ class TestCoTReasoning:
         # Patch llm.generate
         monkeypatch.setattr(agent.llm, "generate", fake_generate)
 
-        # Create an observation (step 0 -> plan.step should be 1)
+        # Create an observation. Plan.step reflects the current model step.
         obs = Observation(step=0, self_state={}, local_state={})
 
         plan = agent.reasoning.plan(obs=obs)
 
         # Assertions
         assert isinstance(plan, Plan)
-        assert plan.step == 1
+        assert plan.step == 0
         assert plan.llm_plan.content == "mock execution"
         assert plan.ttl == 1
-        # and our memory.add_to_memory should at least have been called once with type="observation"
-        mock_memory.add_to_memory.assert_any_call(
-            type="Observation",
-            content={"content": str(obs)},
+        assert not any(
+            call.kwargs.get("type") == "observation"
+            for call in mock_memory.add_to_memory.call_args_list
         )
+
+    def test_plan_does_not_write_observation_entries(
+        self, llm_response_factory, mock_agent
+    ):
+        """CoT should not persist observations during planning."""
+        mock_agent.step_prompt = "Default step prompt"
+        mock_agent.generate_obs.return_value = Observation(
+            step=1, self_state={}, local_state={}
+        )
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent._step_display_data = {}
+
+        mock_plan_response = llm_response_factory(
+            content="Thought 1: reasoning\nAction: act"
+        )
+        mock_exec_response = llm_response_factory(content="executor response")
+        mock_agent.llm.generate.side_effect = [mock_plan_response, mock_exec_response]
+
+        reasoning = CoTReasoning(mock_agent)
+        reasoning.plan(obs=Observation(step=1, self_state={}, local_state={}))
+
+        calls = mock_agent.memory.add_to_memory.call_args_list
+        assert not any(call.kwargs.get("type") == "observation" for call in calls)
 
     def test_plan_with_selected_tools(self, llm_response_factory, mock_agent):
         """Test plan method with selected tools."""
@@ -118,6 +146,32 @@ class TestCoTReasoning:
         assert result.ttl == 3
         # Check that tool schema was called with selected tools
         assert mock_agent.tool_manager.get_all_tools_schema.call_count == 2
+        assert mock_agent.llm.generate.call_args_list[1].kwargs["tool_choice"] == "auto"
+
+    def test_plan_with_custom_tool_calls(self, llm_response_factory, mock_agent):
+        """Test plan method forwards a custom execution tool choice."""
+        mock_agent.step_prompt = "You are an agent in a simulation"
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent._step_display_data = {}
+        mock_plan_response = llm_response_factory(
+            content="Thought 1: Test reasoning\nAction: test_action"
+        )
+        mock_exec_response = llm_response_factory(content="executor response")
+        mock_agent.llm.generate.side_effect = [mock_plan_response, mock_exec_response]
+
+        reasoning = CoTReasoning(mock_agent)
+        obs = Observation(step=1, self_state={}, local_state={})
+        reasoning.plan(obs=obs, tool_calls="required")
+
+        assert mock_agent.llm.generate.call_args_list[1].kwargs["tool_choice"] == (
+            "required"
+        )
 
     def test_plan_no_prompt_error(self, mock_agent):
         """Test plan method raises error when no prompt is provided."""
@@ -188,6 +242,9 @@ class TestCoTReasoning:
         result = asyncio.run(reasoning.aplan(prompt="Async prompt", obs=obs, ttl=4))
 
         assert isinstance(result, Plan)
-        assert result.step == 2
+        assert result.step == 1
         assert result.ttl == 4
         assert mock_agent.llm.agenerate.call_count == 2
+        assert mock_agent.llm.agenerate.call_args_list[1].kwargs["tool_choice"] == (
+            "auto"
+        )

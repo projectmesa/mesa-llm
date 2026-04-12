@@ -227,7 +227,7 @@ class TestToolManager:
         assert "tool_b" not in tool_names
 
     def test_get_all_tools_schema_empty_list(self):
-        """Test that empty list returns all tools (current behavior)."""
+        """Test that empty list returns no tools (selected_tools=[] means 'no tools')."""
 
         @tool
         def test_tool(agent, x: int) -> int:
@@ -242,11 +242,10 @@ class TestToolManager:
 
         manager = ToolManager()
 
-        # Empty list should return all tools (current behavior)
-        all_schemas = manager.get_all_tools_schema()
+        # Empty list should return no tools — the user explicitly asked for none
         empty_list_schemas = manager.get_all_tools_schema([])
 
-        assert len(empty_list_schemas) == len(all_schemas)
+        assert len(empty_list_schemas) == 0
 
     def test_get_all_tools_schema_none(self):
         """Test that None returns all tools."""
@@ -288,7 +287,7 @@ class TestToolManager:
         # Test with nonexistent tools
         selected_tools = ["existing_tool", "nonexistent_tool"]
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="Unknown tool name"):
             manager.get_all_tools_schema(selected_tools)
 
     def test_get_all_tools_schema_single_tool(self):

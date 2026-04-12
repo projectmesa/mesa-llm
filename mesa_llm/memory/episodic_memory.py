@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from mesa_llm.memory.memory import Memory, MemoryEntry
+from mesa_llm.memory.memory import Memory, MemoryEntry, _format_message_entry
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -68,16 +68,31 @@ class EpisodicMemory(Memory):
         max_capacity: int = 200,
         considered_entries: int = 30,
         recency_decay: float = 0.995,
+        api_base: str | None = None,
     ):
         """
-        Initialize the EpisodicMemory
+        Initialize the EpisodicMemory.
+
+        Args:
+            agent : the agent that owns this memory
+            llm_model : the model used to grade event importance
+            display : whether to display memory entries in the console
+            max_capacity : maximum number of finalized episodic entries to keep
+            considered_entries : number of entries to consider during retrieval
+            recency_decay : exponential decay factor for recency scoring
+            api_base : the API base URL to use for the LLM provider
         """
         if not llm_model:
             raise ValueError(
                 "llm_model must be provided for the usage of episodic memory"
             )
 
-        super().__init__(agent, llm_model=llm_model, display=display)
+        super().__init__(
+            agent,
+            llm_model=llm_model,
+            api_base=api_base,
+            display=display,
+        )
 
         self.max_capacity = max_capacity
         self.memory_entries = deque(maxlen=self.max_capacity)
@@ -247,13 +262,17 @@ class EpisodicMemory(Memory):
         """
         Get the communication history
         """
-        return "\n".join(
-            [
-                f"step {entry.step}: {entry.content['message']}\n\n"
-                for entry in self.memory_entries
-                if "message" in entry.content
-            ]
-        )
+        lines = []
+        for entry in self.memory_entries:
+            if "message" not in entry.content:
+                continue
+            msgs = entry.content["message"]
+            if isinstance(msgs, list):
+                for msg in msgs:
+                    lines.append(f"Step {entry.step}: {_format_message_entry(msg)}\n\n")
+            else:
+                lines.append(f"Step {entry.step}: {_format_message_entry(msgs)}\n\n")
+        return "\n".join(lines)
 
     async def aprocess_step(self, pre_step: bool = False):
         """
