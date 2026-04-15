@@ -2,6 +2,8 @@ import json
 from collections import deque
 from typing import TYPE_CHECKING
 
+import litellm
+import numpy as np
 from pydantic import BaseModel
 
 from mesa_llm.memory.memory import Memory, MemoryEntry, _format_message_entry
@@ -68,6 +70,10 @@ class EpisodicMemory(Memory):
         max_capacity: int = 200,
         considered_entries: int = 30,
         recency_decay: float = 0.995,
+        embedding_model: str | None = None,
+        recency_weight: float = 1.0,
+        relevance_weight: float = 1.0,
+        importance_weight: float = 1.0,
         api_base: str | None = None,
     ):
         """
@@ -98,6 +104,11 @@ class EpisodicMemory(Memory):
         self.memory_entries = deque(maxlen=self.max_capacity)
         self.considered_entries = considered_entries
         self.recency_decay = recency_decay
+        self.embedding_model = embedding_model
+
+        self.recency_weight = recency_weight
+        self.relevance_weight = relevance_weight
+        self.importance_weight = importance_weight
 
         self.system_prompt = """
             You are an assistant that evaluates memory entries on a scale from 1 to 5, based on their importance to a specific problem or task. Your goal is to assign a score that reflects how much each entry contributes to understanding, solving, or advancing the task. Use the following grading scale:
@@ -114,6 +125,30 @@ class EpisodicMemory(Memory):
 
             Only assess based on the entry's content and its value to the task at hand. Ignore style, grammar, or tone.
             """
+
+    def _get_embedding(self, text: str) -> list[float] | None:
+        """
+        Helper function to convert a text into vector
+
+        Return None if API fails.
+        """
+        try:
+            response = litellm.embedding(model=self.embedding_model, input=[text])
+            return response.data[0]["embedding"]
+        except Exception:
+            return None
+
+    async def _aget_embedding(self, text: str) -> list[float] | None:
+        """
+        Async version for parallel stepping.
+        """
+        try:
+            response = await litellm.aembedding(
+                model=self.embedding_model, input=[text]
+            )
+            return response.data[0]["embedding"]
+        except Exception:
+            return None
 
     def _extract_importance(self, entry) -> int:
         """
@@ -155,6 +190,21 @@ class EpisodicMemory(Memory):
             {previous_entries}
             """
 
+    def _safely_parse_grade(self, raw_content: str) -> int:
+        """
+        Safely parse the returned grading from the LLM.
+        It gracefully handles correctly formatted JSON, raw integers,
+        and broken string formats to ensure the simulation does not crash.
+        """
+        try:
+            formatted = json.loads(raw_content)
+            return int(formatted["grade"])
+        except Exception:
+            try:
+                return int(raw_content.strip())
+            except Exception:
+                return 3
+
     def grade_event_importance(self, type: str, content: dict) -> float:
         """
         Grade this event based on the content respect to the previous memory entries
@@ -167,8 +217,7 @@ class EpisodicMemory(Memory):
             response_format=EventGrade,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
-        return formatted_response["grade"]
+        return self._safely_parse_grade(rsp.choices[0].message.content)
 
     async def agrade_event_importance(self, type: str, content: dict) -> float:
         """
@@ -181,45 +230,96 @@ class EpisodicMemory(Memory):
             prompt=prompt,
             response_format=EventGrade,
         )
+        return self._safely_parse_grade(rsp.choices[0].message.content)
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
-        return formatted_response["grade"]
-
-    def retrieve_top_k_entries(self, k: int) -> list[MemoryEntry]:
+    def retrieve_top_k_entries(
+        self, k: int, qry_str: str | None = None
+    ) -> list[MemoryEntry]:
         """
         Retrieve the top-k entries using normalized importance and recency.
 
         Notes:
         - Inspired by Generative Agents retrieval scoring:
           recency/importance/relevance are normalized separately and combined.
-        - This implementation currently combines importance + recency only.
-          Relevance (embedding cosine similarity with a focal query) is pending.
+        - This implementation currently combines importance + recency + relevance
+
+        - Relevance calculation is carried out using a qry_str(similar to the focal_pt in the paper)
+        If a query string (`qry_str`) is provided and an embedding model is available, cosine similarity is computed between the query
+        embedding and each memory entry embedding.
+
+        If relevance is not proveided the grading logic falls back to just importance and recency.
         """
         if not self.memory_entries:
             return []
 
+        entries = list(self.memory_entries)[-self.considered_entries :]
+
         importance_dict = {}
         recency_dict = {}
-
-        entries = list(self.memory_entries)
+        relevance_dict = {}
+        qry_embedding = None
         current_step = self.agent.model.steps
 
         for i, entry in enumerate(entries):
             importance_dict[i] = self._extract_importance(entry)
 
-            age = current_step - entry.step
+            age = max(0, current_step - (entry.step or 0))
             recency_dict[i] = self.recency_decay**age
 
-        importance_scaled = normalize_dict_values(importance_dict, 0, 1)
-        recency_scaled = normalize_dict_values(recency_dict, 0, 1)
+        if qry_str is not None and self.embedding_model is not None:
+            qry_embedding = self._get_embedding(str(qry_str))
 
-        final_scores = []
+        use_relevance = qry_embedding is not None
+        if use_relevance:
+            valid_indices = []
+            matrix_rows = []
+
+            for i, entry in enumerate(entries):
+                emb = getattr(entry, "embedding", None)
+                if emb is not None:
+                    valid_indices.append(i)
+                    matrix_rows.append(emb)
+                else:
+                    relevance_dict[i] = 0.0
+
+            if matrix_rows:
+                memory_matrix = np.array(matrix_rows)
+                query_vec = np.array(qry_embedding)
+
+                dot_products = np.dot(memory_matrix, query_vec)
+                norms_matrix = np.linalg.norm(memory_matrix, axis=1)
+                norm_query = np.linalg.norm(query_vec)
+                denoms = norms_matrix * norm_query
+
+                similarities = np.divide(
+                    dot_products,
+                    denoms,
+                    out=np.zeros_like(dot_products),
+                    where=denoms != 0,
+                )
+
+                for idx, sim in zip(valid_indices, similarities):
+                    relevance_dict[idx] = float(sim)
+
+        importance_scaled = normalize_dict_values(dict(importance_dict), 0, 1)
+        recency_scaled = normalize_dict_values(dict(recency_dict), 0, 1)
+        if use_relevance:
+            relevance_scaled = normalize_dict_values(dict(relevance_dict), 0, 1)
+
+        final_scores = {}
+
         for i in range(len(entries)):
-            total_score = importance_scaled[i] + recency_scaled[i]
-            final_scores.append((total_score, entries[i]))
+            score = (
+                self.recency_weight * recency_scaled[i]
+                + self.importance_weight * importance_scaled[i]
+            )
+            if use_relevance:
+                score += self.relevance_weight * relevance_scaled[i]
 
-        final_scores.sort(key=lambda x: x[0], reverse=True)
-        return [entry for _, entry in final_scores[:k]]
+            final_scores[i] = score
+
+        top_indices = sorted(final_scores, key=final_scores.get, reverse=True)[:k]
+        return [entries[i] for i in top_indices]
 
     def _finalize_entry(self, type: str, graded_content: dict):
         """Create and persist a finalized episodic entry."""
@@ -228,6 +328,41 @@ class EpisodicMemory(Memory):
             content={type: graded_content},
             step=self.agent.model.steps,
         )
+
+        emb = None
+        if self.embedding_model:
+            try:
+                clean_text_parts = [
+                    f"{k}: {v}" for k, v in graded_content.items() if k != "importance"
+                ]
+                clean_str = f"{type} - " + ", ".join(clean_text_parts)
+                emb = self._get_embedding(clean_str)
+            except Exception:
+                emb = None
+
+        new_entry.embedding = emb
+        self.memory_entries.append(new_entry)
+
+    async def _afinalize_entry(self, type: str, graded_content: dict):
+        """Async version: Create entry and compute its embedding."""
+        new_entry = MemoryEntry(
+            agent=self.agent,
+            content={type: graded_content},
+            step=self.agent.model.steps,
+        )
+
+        emb = None
+        if self.embedding_model:
+            try:
+                clean_text_parts = [
+                    f"{k}: {v}" for k, v in graded_content.items() if k != "importance"
+                ]
+                clean_str = f"{type} - " + ", ".join(clean_text_parts)
+                emb = await self._aget_embedding(clean_str)
+            except Exception:
+                emb = None
+
+        new_entry.embedding = emb
         self.memory_entries.append(new_entry)
 
     def add_to_memory(self, type: str, content: dict):
@@ -248,19 +383,19 @@ class EpisodicMemory(Memory):
             **content,
             "importance": await self.agrade_event_importance(type, content),
         }
-        self._finalize_entry(type, graded_content)
+        await self._afinalize_entry(type, graded_content)
 
-    def get_prompt_ready(self) -> str:
+    def get_prompt_ready(self, qry_str: str | None = None) -> str:
+        """Pass the query string through to retrieval."""
+        entries = self.retrieve_top_k_entries(self.considered_entries, qry_str=qry_str)
         return f"Top {self.considered_entries} memory entries:\n\n" + "\n".join(
-            [
-                str(entry)
-                for entry in self.retrieve_top_k_entries(self.considered_entries)
-            ]
+            str(entry) for entry in entries
         )
 
     def get_communication_history(self) -> str:
         """
-        Get the communication history
+        Get the communication history accurately formatted for LLMs
+        to easily parse sender and message text.
         """
         lines = []
         for entry in self.memory_entries:
