@@ -18,6 +18,9 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+# Aliased as we have a 'style' variable used in this file
+from terminal_style import style as terminal_style
+
 
 class AgentViewer:
     """
@@ -40,7 +43,14 @@ class AgentViewer:
                 return pickle.load(f)  # noqa: S301
         else:
             with open(self.recording_path) as f:
-                return json.load(f)
+                try:
+                    return json.load(f)
+                except json.JSONDecodeError as e:
+                    raise ValueError(
+                        terminal_style(
+                            f"Invalid JSON object from the file: {e}", color="red"
+                        )
+                    ) from e
 
     def _organize_events_by_agent(self):
         """Organize events by agent ID."""

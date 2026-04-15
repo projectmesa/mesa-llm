@@ -2,6 +2,7 @@ import json
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+from terminal_style import style
 
 from mesa_llm.reasoning.reasoning import Observation, Plan, Reasoning
 
@@ -122,7 +123,15 @@ class ReActReasoning(Reasoning):
             system_prompt=react_system_prompt,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
+        # Parse JSON arguments safely
+        try:
+            formatted_response = json.loads(rsp.choices[0].message.content)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                style(f"Invalid JSON response returned by the model: {e}", color="red")
+            ) from e
+        except TypeError:
+            formatted_response = {}  # Handle 'None' gracefully
 
         self.agent.memory.add_to_memory(type="plan", content=formatted_response)
 
@@ -194,7 +203,15 @@ class ReActReasoning(Reasoning):
             system_prompt=react_system_prompt,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
+        # Parse JSON arguments safely
+        try:
+            formatted_response = json.loads(rsp.choices[0].message.content)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                style(f"Invalid JSON response returned by the model: {e}", color="red")
+            ) from e
+        except TypeError:
+            formatted_response = {}  # Handle 'None' gracefully
 
         await self.agent.memory.aadd_to_memory(type="plan", content=formatted_response)
 

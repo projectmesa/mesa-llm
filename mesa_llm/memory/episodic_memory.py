@@ -3,6 +3,7 @@ from collections import deque
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+from terminal_style import style
 
 from mesa_llm.memory.memory import Memory, MemoryEntry, _format_message_entry
 
@@ -167,8 +168,17 @@ class EpisodicMemory(Memory):
             response_format=EventGrade,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
-        return formatted_response["grade"]
+        # Parse JSON arguments safely
+        try:
+            formatted_response = json.loads(rsp.choices[0].message.content)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                style(f"Invalid JSON response returned by the model: {e}", color="red")
+            ) from e
+        except TypeError:
+            formatted_response = {}  # Handle 'None' gracefully
+
+        return formatted_response.get("grade")
 
     async def agrade_event_importance(self, type: str, content: dict) -> float:
         """
@@ -182,8 +192,17 @@ class EpisodicMemory(Memory):
             response_format=EventGrade,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
-        return formatted_response["grade"]
+        # Parse JSON arguments safely
+        try:
+            formatted_response = json.loads(rsp.choices[0].message.content)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                style(f"Invalid JSON response returned by the model: {e}", color="red")
+            ) from e
+        except TypeError:
+            formatted_response = {}  # Handle 'None' gracefully
+
+        return formatted_response.get("grade")
 
     def retrieve_top_k_entries(self, k: int) -> list[MemoryEntry]:
         """
