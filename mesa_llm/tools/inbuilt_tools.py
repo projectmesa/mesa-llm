@@ -41,6 +41,7 @@ def _has_other_agents(agent: "LLMAgent") -> bool:
     """At least one other agent must exist for communication."""
     return sum(1 for a in agent.model.agents if a.unique_id != agent.unique_id) > 0
 
+
 # Mapping directions to (dx, dy) for Cartesian-style spaces.
 direction_map_xy = {
     "North": (0, 1),
