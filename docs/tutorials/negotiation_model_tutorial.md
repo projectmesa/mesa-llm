@@ -9,11 +9,9 @@ The goal here is **not to replicate** the original example, but to present a **s
 
 Key differences from the original example include:
 - A reduced number of agents
-- No enforced negotiation protocol
-- No spatial environment or grid
 - Emphasis on understanding ReAct reasoning output
+- No custom tools
 
-This makes the example easier to follow for new users while still demonstrating core Mesa-LLM concepts.
 
 ## Model Description
 
@@ -26,6 +24,7 @@ This `Model` simulates a basic negotiation scenario involving:
 - Has a different budget
 - Reasons independently using `ReActReasoning`
 - Buyers do not coordinate with each other
+- Can move to another location
 
 ### Seller Agent
 
@@ -49,8 +48,6 @@ pip install -U mesa-llm
 
 Negotiation is a conceptual process rather than a spatial one.
 Buyers and sellers negotiate based on preferences, constraints, and reasoning—not physical position.
-To keep this tutorial simple and focused, no grid or physical environment is introduced.
-Adding a grid would increase complexity without improving the clarity of the negotiation logic.
 
 
 ## Model Execution
@@ -74,6 +71,7 @@ In this tutorial:
 Using the previously imported dependencies, we define the agent class:
 The Seller agent inherits from LLMAgent and uses `ReActReasoning` to decide how to respond during negotiation.
 It reasons about the current simulation step and its minimum acceptable price.
+Use `speak_to` tool to interact with buyer.
 
 ``` python
 # Import Dependencies
@@ -81,6 +79,7 @@ from mesa.model import Model
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.reasoning.react import ReActReasoning
 from mesa_llm.memory.st_lt_memory import STLTMemory
+from mesa.space import MultiGrid
 
 # ---------------- SELLER ----------------
 class Seller(LLMAgent):
@@ -101,7 +100,7 @@ class Seller(LLMAgent):
         # across multiple simulation steps.
         self.memory = STLTMemory(
             agent=self,
-            llm_model="ollama/llama3",
+            llm_model="ollama/llama3.1:latest",
         )
 
     def step(self):
@@ -132,7 +131,7 @@ class Seller(LLMAgent):
 
         # Prompt describing the seller's role in the negotiation.
         # The LLM is asked to reason about the situation,
-        # not to execute any concrete actions.
+
         prompt = """
         You are a seller negotiating the price of a single item.
         Reason about your position given your minimum acceptable price.
@@ -141,12 +140,13 @@ class Seller(LLMAgent):
         # Generate a reasoning plan using the configured reasoning strategy.
         plan = self.reasoning.plan(
             prompt=prompt,
-            obs=observation
+            obs=observation,
+            selected_tools=["speak_to"]        # Inbuilt tool
         )
 
         # Apply the plan.
-        # In this tutorial, actions are not executed and appear only
-        # as part of the reasoning trace.
+        # In this tutorial, actions are excuted using tools
+
         self.apply_plan(plan)
 ```
 
@@ -154,7 +154,7 @@ class Seller(LLMAgent):
 ### Each buyer:
 - Has a different budget
 - Reasons independently using `ReActReasoning`
-- Buyers do not coordinate with each other
+- Use inbuilt tools `teleport_to_location` if not engaed with seller
 
 ``` python
 # ---------------- BUYER ----------------
@@ -176,8 +176,7 @@ class Buyer(LLMAgent):
         # This is optional, but useful for observing evolving reasoning.
         self.memory = STLTMemory(
             agent=self,
-            llm_model="ollama/llama3",
-
+            llm_model="ollama/llama3.1:latest",
         )
 
     def step(self):
@@ -202,7 +201,6 @@ class Buyer(LLMAgent):
         prompt = """
         You are a buyer negotiating to purchase a single item.
         You have a fixed budget.
-
         Use any relevant information you have received so far
         when reasoning about the negotiation.
 
@@ -210,7 +208,8 @@ class Buyer(LLMAgent):
 
         plan = self.reasoning.plan(
             prompt=prompt,
-            obs=observation
+            obs=observation,
+            selected_tools=["teleport_to_location","speak_to"]    # Inbuilts tools
         )
         self.apply_plan(plan)
 ```
@@ -238,15 +237,27 @@ class NegotiationModel(Model):
     - Advances the simulation step by step
     """
 
-    def __init__(self, llm_model="ollama/llama3", seed=None):
+    def __init__(
+        self,
+        initial_buyers: int = 2,
+        width: int = 5,
+        height: int = 5,
+        llm_model: str = "ollama/llama3.1:latest",
+        seed=None,
+    ):
         # Initialize the Mesa model.
         # The seed is optional and can be used for reproducibility.
+        # Initialize model with dimension & grid
         super().__init__(seed=seed)
+        super().__init__(seed=seed)
+        self.width = width
+        self.height = height
+        self.grid = MultiGrid(self.width, self.height, torus=False)
 
         # Create a single seller agent with a minimum acceptable price.
         # Agents are created using Mesa's create_agents() helper.
-        Seller.create_agents(
-            model=self,
+        seller_agents = Seller.create_agents(
+            self,
             n=1,
             reasoning=ReActReasoning,
             llm_model=llm_model,
@@ -254,25 +265,48 @@ class NegotiationModel(Model):
             internal_state={"min_price": 60},
         )
 
-        # Create the first buyer with a higher budget.
-        Buyer.create_agents(
+        # Place seller Agent to a postion
+        seller = seller_agents[0]
+        self.grid.place_agent(
+            seller,
+            (self.grid.width // 2, self.grid.height // 2),
+        )
+
+        # Split the total buyers into two budget groups.
+        higher_budget_buyers = (initial_buyers + 1) // 2
+        lower_budget_buyers = initial_buyers // 2
+
+        # Create the first buyer group with a higher budget.
+        high_budget_agents = Buyer.create_agents(
             model=self,
-            n=1,
+            n=higher_budget_buyers,
             reasoning=ReActReasoning,
             llm_model=llm_model,
             system_prompt="You are a buyer.",
             internal_state={"budget": 100},
         )
+        # Place high budget agent on random position on grid
+        if high_budget_agents:
+            x = self.rng.integers(0, self.grid.width, size=(higher_budget_buyers,))
+            y = self.rng.integers(0, self.grid.height, size=(higher_budget_buyers,))
+            for a, i, j in zip(high_budget_agents, x, y):
+                self.grid.place_agent(a, (i, j))
 
-        # Create the second buyer with a lower budget.
-        Buyer.create_agents(
+        # Create the second buyer group with a lower budget.
+        low_budget_agents = Buyer.create_agents(
             model=self,
-            n=1,
+            n=lower_budget_buyers,
             reasoning=ReActReasoning,
             llm_model=llm_model,
             system_prompt="You are a buyer.",
             internal_state={"budget": 70},
         )
+        # Place low budget agent on random position on grid
+        if low_budget_agents:
+            x = self.rng.integers(0, self.grid.width, size=(lower_budget_buyers,))
+            y = self.rng.integers(0, self.grid.height, size=(lower_budget_buyers,))
+            for a, i, j in zip(low_budget_agents, x, y):
+                self.grid.place_agent(a, (i, j))
 
     def step(self):
         """
@@ -309,28 +343,22 @@ if __name__ == "__main__":
 ## Understanding the Output
 Below is an example of the reasoning output produced by `ReActReasoning`:
 ``` bash
-Message                                                                           │
-│    └── message : My minimum acceptable price is 60.                                 │
-│    └── sender : LLMAgent 1                                                          │
-│    └── recipients : [<__main__.Buyer object at 0x13d015450>]                        │
-│                                                                                     │
-[Plan]                                                                              │
-│    └── reasoning : As I am at step 1, I don't have any information about the        │
-│ environment or my position. Since my short-term memory is empty and my long-term    │
-│ memory doesn't provide any relevant context, I will focus on getting more           │
-│ information about my surroundings. The current observation suggests that the        │
-│ minimum price is 60, but this might not be directly related to my actions.          │
-│ Therefore, I decide to move one step in a random direction to gather more           │
-│ information about the environment and potentially find some clues or objects.       │
-│    └── action : move_one_step
-```
-## About Actions in the Output
-`ReActReasoning` produces both a reasoning trace and an action suggestion.
+Step 2 | Buyer 2
+────────────────────────────────────────────────────────────
+[Plan]
+- reasoning: Based on my current observation and long-term memory, I recall that my initial offer at step 1 was not rejected by the seller. Considering my short-term memory, I remember that the current budget is still 100, which is greater than the minimum acceptable price of 60. Therefore, I will attempt to make a higher offer, as this may increase my chances of successfully negotiating the purchase.
+- action: speak_to
 
-In this tutorial:
-- Actions are not executed
-- Actions appear only as part of the reasoning trace
-- Action execution is introduced in later tutorials
+[Action]
+- tool_calls:
+  1. name: speak_to
+     response: 2 → [] : Hello, agent!
+
+[Message]
+- message: My minimum acceptable price is 60.
+- sender: 1
+- recipients: 2
+```
 
 ## Exercises
 Try the following exercises to better understand agent communication and reasoning:
@@ -349,4 +377,6 @@ Try the following exercises to better understand agent communication and reasoni
 4. **Increase the number of steps**
    Run the `Model` for more steps and observe how agent messaging influences
    reasoning over time.
+
+
 
