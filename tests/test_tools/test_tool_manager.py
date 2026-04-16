@@ -716,11 +716,11 @@ class TestToolManager:
         assert "Async: hello" in result[0]["response"]
 
     # ------------------------------------------------------------------
-    # Tests for include_builtins and remove_tool (issue #90)
+    # Tests for include_builtin_tools and remove_tool (issue #90)
     # ------------------------------------------------------------------
 
-    def test_include_builtins_false_starts_empty(self):
-        """ToolManager(include_builtins=False) should have no global tools."""
+    def test_include_builtin_tools_false_starts_empty(self):
+        """ToolManager(include_builtin_tools=False) should have no global tools."""
 
         # Register some global tools first
         @tool
@@ -736,11 +736,11 @@ class TestToolManager:
             """
             return x
 
-        manager = ToolManager(include_builtins=False)
+        manager = ToolManager(include_builtin_tools=False)
         assert len(manager.tools) == 0
         assert not manager.has_tool("global_tool_a")
 
-    def test_include_builtins_true_includes_global_tools(self):
+    def test_include_builtin_tools_true_includes_global_tools(self):
         """Default ToolManager should include globally registered tools."""
 
         @tool
@@ -756,11 +756,11 @@ class TestToolManager:
             """
             return x
 
-        manager = ToolManager(include_builtins=True)
+        manager = ToolManager(include_builtin_tools=True)
         assert manager.has_tool("global_tool_b")
 
-    def test_include_builtins_false_with_extra_tools(self):
-        """include_builtins=False with extra_tools should only have extras."""
+    def test_include_builtin_tools_false_with_extra_tools(self):
+        """include_builtin_tools=False with extra_tools should only have extras."""
 
         @tool
         def global_should_not_appear(agent, x: int) -> int:
@@ -775,16 +775,21 @@ class TestToolManager:
             """
             return x
 
+        @tool
         def custom_tool(agent, y: str) -> str:
+            """Custom tool for testing.
+
+            Args:
+                agent: Provided automatically.
+                y: Input string.
+
+            Returns:
+                The input string.
+            """
             return y
 
-        custom_tool.__tool_schema__ = {
-            "type": "function",
-            "function": {"name": "custom_tool"},
-        }
-
         manager = ToolManager(
-            include_builtins=False,
+            include_builtin_tools=False,
             extra_tools={"custom_tool": custom_tool},
         )
         assert manager.has_tool("custom_tool")

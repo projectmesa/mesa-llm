@@ -78,7 +78,7 @@ class LLMAgent(Agent):
             api_base=api_base,
         )
 
-        self.tool_manager = ToolManager(include_builtins=include_builtin_tools)
+        self.tool_manager = ToolManager(include_builtin_tools=include_builtin_tools)
         self.vision = vision
         self.reasoning = reasoning(agent=self)
         self.system_prompt = system_prompt
