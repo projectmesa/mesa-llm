@@ -119,7 +119,9 @@ class ToolManager:
     def remove_tool(self, name: str):
         """Remove a tool by name. Logs a debug warning for missing tools."""
         if name not in self.tools:
-            logger.debug("remove_tool: '%s' not found (available: %s)", name, sorted(self.tools))
+            logger.debug(
+                "remove_tool: '%s' not found (available: %s)", name, sorted(self.tools)
+            )
             return
         self.tools.pop(name)
 
