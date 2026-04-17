@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from mesa_llm.reasoning.react import ReActReasoning
-from mesa_llm.reasoning.reasoning import Observation, Plan
+from mesa_llm.reasoning.reasoning import Observation
 
 
 class TestReActReasoning:
@@ -167,9 +167,7 @@ class TestReActReasoning:
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
 
         mock_agent.llm.agenerate = AsyncMock(
-            return_value=llm_response_factory(
-                content="Async reasoning"
-            )
+            return_value=llm_response_factory(content="Async reasoning")
         )
 
         reasoning = ReActReasoning(mock_agent)

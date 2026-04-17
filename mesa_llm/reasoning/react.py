@@ -36,8 +36,8 @@ class ReActReasoning(Reasoning):
 {persona_section}
 
         # Instructions
-        Based on the information given to you, think about what you should do with proper reasoning. 
-        Describe your thought process about the situation, including how your memory informs your decision. 
+        Based on the information given to you, think about what you should do with proper reasoning.
+        Describe your thought process about the situation, including how your memory informs your decision.
         Then, use the provided tools to take action if necessary.
 
         """
@@ -113,9 +113,13 @@ class ReActReasoning(Reasoning):
         )
 
         response_message = rsp.choices[0].message
-        react_plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        react_plan = Plan(
+            step=self.agent.model.steps, llm_plan=response_message, ttl=ttl
+        )
 
-        self.agent.memory.add_to_memory(type="plan", content={"content": str(react_plan)})
+        self.agent.memory.add_to_memory(
+            type="plan", content={"content": str(react_plan)}
+        )
 
         return react_plan
 
@@ -176,8 +180,12 @@ class ReActReasoning(Reasoning):
         )
 
         response_message = rsp.choices[0].message
-        react_plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        react_plan = Plan(
+            step=self.agent.model.steps, llm_plan=response_message, ttl=ttl
+        )
 
-        await self.agent.memory.aadd_to_memory(type="plan", content={"content": str(react_plan)})
+        await self.agent.memory.aadd_to_memory(
+            type="plan", content={"content": str(react_plan)}
+        )
 
         return react_plan
