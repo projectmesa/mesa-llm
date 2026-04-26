@@ -24,6 +24,10 @@ async def step_agents_parallel(agents: list[Agent | LLMAgent]) -> None:
     """Step all agents in parallel using async/await."""
     tasks = []
     for agent in agents:
+        # Skip agents that are components of a Meta Agent
+        if getattr(agent, "is_component", False):
+            continue
+
         if hasattr(agent, "astep"):
             tasks.append(agent.astep())
         elif hasattr(agent, "step"):
@@ -41,6 +45,10 @@ def step_agents_multithreaded(agents: list[Agent | LLMAgent]) -> None:
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
         for agent in agents:
+            # Skip agents that are components of a Meta Agent
+            if getattr(agent, "is_component", False):
+                continue
+
             if hasattr(agent, "astep"):
                 # run async steps in the event loop in a thread
                 futures.append(
@@ -75,6 +83,13 @@ def step_agents_parallel_sync(agents: list[Agent | LLMAgent]) -> None:
 
 # Patch Mesa's shuffle_do for automatic parallel detection
 _original_shuffle_do = AgentSet.shuffle_do
+try:
+    from mesa.agentset import _HardKeyAgentSet
+
+    _original_hardkey_shuffle_do = _HardKeyAgentSet.shuffle_do
+except ImportError:
+    _HardKeyAgentSet = None
+    _original_hardkey_shuffle_do = None
 
 
 def _enhanced_shuffle_do(self, method: str, *args, **kwargs):
@@ -84,7 +99,11 @@ def _enhanced_shuffle_do(self, method: str, *args, **kwargs):
         if hasattr(agent, "model") and getattr(agent.model, "parallel_stepping", False):
             step_agents_parallel_sync(list(self))
             return
-    _original_shuffle_do(self, method, *args, **kwargs)
+
+    if _HardKeyAgentSet and isinstance(self, _HardKeyAgentSet):
+        _original_hardkey_shuffle_do(self, method, *args, **kwargs)
+    else:
+        _original_shuffle_do(self, method, *args, **kwargs)
 
 
 def enable_automatic_parallel_stepping(mode: str = "asyncio"):
@@ -94,11 +113,15 @@ def enable_automatic_parallel_stepping(mode: str = "asyncio"):
         raise ValueError("mode must be either 'asyncio' or 'threading'")
     _PARALLEL_STEPPING_MODE = mode
     AgentSet.shuffle_do = _enhanced_shuffle_do
+    if _HardKeyAgentSet:
+        _HardKeyAgentSet.shuffle_do = _enhanced_shuffle_do
 
 
 def disable_automatic_parallel_stepping():
     """Restore original shuffle_do behavior."""
     AgentSet.shuffle_do = _original_shuffle_do
+    if _HardKeyAgentSet:
+        _HardKeyAgentSet.shuffle_do = _original_hardkey_shuffle_do
 
 
 # --- Monkey-patch AgentSet with do_async for async parallel method calls ---
@@ -114,6 +137,10 @@ def _agentset_do_async(self, method: str, *args, **kwargs):
     async def _run():
         tasks = []
         for agent in self:
+            # Skip agents that are components of a Meta Agent
+            if getattr(agent, "is_component", False):
+                continue
+
             fn = getattr(agent, method, None)
             if fn is not None and asyncio.iscoroutinefunction(fn):
                 tasks.append(fn(*args, **kwargs))
