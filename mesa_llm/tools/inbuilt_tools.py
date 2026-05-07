@@ -19,6 +19,30 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Precondition predicates for built-in tools
+# ---------------------------------------------------------------------------
+
+
+def _has_grid_and_position(agent: "LLMAgent") -> bool:
+    """Agent must be placed on a grid or space to move."""
+    grid = getattr(agent.model, "grid", None)
+    space = getattr(agent.model, "space", None)
+    if grid is None and space is None:
+        return False
+    try:
+        _get_agent_position(agent)
+    except (ValueError, AttributeError):
+        return False
+    return True
+
+
+def _has_other_agents(agent: "LLMAgent") -> bool:
+    """At least one other agent must exist for communication."""
+    return sum(1 for a in agent.model.agents if a.unique_id != agent.unique_id) > 0
+
+
 # Mapping directions to (dx, dy) for Cartesian-style spaces.
 direction_map_xy = {
     "North": (0, 1),
@@ -64,7 +88,7 @@ def _get_agent_position(agent: "LLMAgent") -> Any:
     )
 
 
-@tool
+@tool(requires=_has_grid_and_position)
 def move_one_step(agent: "LLMAgent", direction: str) -> str:
     """
     Moves agents one step in specified cardinal/diagonal directions (North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest). Automatically handles different Mesa grid types including SingleGrid, MultiGrid, OrthogonalGrids, and ContinuousSpace.
@@ -154,7 +178,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
     )
 
 
-@tool
+@tool(requires=_has_grid_and_position)
 def teleport_to_location(
     agent: "LLMAgent",
     target_coordinates: list[int | float],
@@ -192,7 +216,7 @@ def teleport_to_location(
     return f"agent {agent.unique_id} moved to {target_coordinates}."
 
 
-@tool
+@tool(requires=_has_other_agents)
 def speak_to(
     agent: "LLMAgent", listener_agents_unique_ids: list[int], message: str
 ) -> str:
