@@ -807,3 +807,111 @@ class TestToolManager:
         assert len(result) == 1
         assert result[0]["tool_call_id"] == "call_async"
         assert "Async: hello" in result[0]["response"]
+
+    # ------------------------------------------------------------------
+    # Tests for include_builtin_tools and remove_tool (issue #90)
+    # ------------------------------------------------------------------
+
+    def test_include_builtin_tools_false_starts_empty(self):
+        """ToolManager(include_builtin_tools=False) should have no global tools."""
+
+        # Register some global tools first
+        @tool
+        def global_tool_a(agent, x: int) -> int:
+            """Global tool A.
+
+            Args:
+                agent: Provided automatically.
+                x: Input.
+
+            Returns:
+                Output.
+            """
+            return x
+
+        manager = ToolManager(include_builtin_tools=False)
+        assert len(manager.tools) == 0
+        assert not manager.has_tool("global_tool_a")
+
+    def test_include_builtin_tools_true_includes_global_tools(self):
+        """Default ToolManager should include globally registered tools."""
+
+        @tool
+        def global_tool_b(agent, x: int) -> int:
+            """Global tool B.
+
+            Args:
+                agent: Provided automatically.
+                x: Input.
+
+            Returns:
+                Output.
+            """
+            return x
+
+        manager = ToolManager(include_builtin_tools=True)
+        assert manager.has_tool("global_tool_b")
+
+    def test_include_builtin_tools_false_with_extra_tools(self):
+        """include_builtin_tools=False with extra_tools should only have extras."""
+
+        @tool
+        def global_should_not_appear(agent, x: int) -> int:
+            """Should not appear.
+
+            Args:
+                agent: Provided automatically.
+                x: Input.
+
+            Returns:
+                Output.
+            """
+            return x
+
+        @tool
+        def custom_tool(agent, y: str) -> str:
+            """Custom tool for testing.
+
+            Args:
+                agent: Provided automatically.
+                y: Input string.
+
+            Returns:
+                The input string.
+            """
+            return y
+
+        manager = ToolManager(
+            include_builtin_tools=False,
+            extra_tools={"custom_tool": custom_tool},
+        )
+        assert manager.has_tool("custom_tool")
+        assert not manager.has_tool("global_should_not_appear")
+        assert len(manager.tools) == 1
+
+    def test_remove_tool(self):
+        """remove_tool should remove a tool by name."""
+
+        @tool
+        def removable_tool(agent, x: int) -> int:
+            """Removable tool.
+
+            Args:
+                agent: Provided automatically.
+                x: Input.
+
+            Returns:
+                Output.
+            """
+            return x
+
+        manager = ToolManager()
+        assert manager.has_tool("removable_tool")
+
+        manager.remove_tool("removable_tool")
+        assert not manager.has_tool("removable_tool")
+
+    def test_remove_tool_missing_is_silent(self):
+        """remove_tool should not raise on missing tool names."""
+        manager = ToolManager()
+        manager.remove_tool("nonexistent_tool")  # should not raise
