@@ -6,9 +6,10 @@ from mesa.model import Model
 from mesa.space import MultiGrid
 from rich import print
 
-from examples.sugarscrap_g1mt.agents import Resource, Trader
 from mesa_llm.reasoning.reasoning import Reasoning
 from mesa_llm.recording.record_model import record_model
+
+from .agents import Resource, Trader
 
 
 # Helper Functions
