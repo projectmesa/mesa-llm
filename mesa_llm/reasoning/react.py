@@ -1,19 +1,9 @@
-import json
 from typing import TYPE_CHECKING
-
-from pydantic import BaseModel, Field
 
 from mesa_llm.reasoning.reasoning import Observation, Plan, Reasoning
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
-
-
-class ReActOutput(BaseModel):
-    reasoning: str = Field(
-        description="Step-by-step reasoning about the situation based on memory and observation"
-    )
-    action: str = Field(description="The specific action to take without using tools")
 
 
 class ReActReasoning(Reasoning):
@@ -46,10 +36,9 @@ class ReActReasoning(Reasoning):
 {persona_section}
 
         # Instructions
-        Based on the information given to you, think about what you should do with proper reasoning, And then decide your plan of action. Respond in the
-        following format:
-        reasoning: [Your reasoning about the situation, including how your memory informs your decision]
-        action: [The action you decide to take - Do NOT use any tools here, just describe the action you will take]
+        Based on the information given to you, think about what you should do with proper reasoning.
+        Describe your thought process about the situation, including how your memory informs your decision.
+        Then, use the provided tools to take action if necessary.
 
         """
         return system_prompt
@@ -115,25 +104,21 @@ class ReActReasoning(Reasoning):
             selected_tools
         )
 
-        # ---------------- generate the plan ----------------
+        # ---------------- generate & execute the plan ----------------
         rsp = self.agent.llm.generate(
             prompt=prompt_list,
             tool_schema=selected_tools_schema,
-            tool_choice="none",
-            response_format=ReActOutput,
+            tool_choice=tool_calls,
             system_prompt=react_system_prompt,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
+        response_message = rsp.choices[0].message
+        react_plan = Plan(
+            step=self.agent.model.steps, llm_plan=response_message, ttl=ttl
+        )
 
-        self.agent.memory.add_to_memory(type="plan", content=formatted_response)
-
-        # ---------------- execute the plan ----------------
-        react_plan = self.execute_tool_call(
-            formatted_response["action"],
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
+        self.agent.memory.add_to_memory(
+            type="plan", content={"content": str(react_plan)}
         )
 
         return react_plan
@@ -186,26 +171,21 @@ class ReActReasoning(Reasoning):
             selected_tools
         )
 
-        # ---------------- generate the plan ----------------
-
+        # ---------------- generate & execute the plan ----------------
         rsp = await self.agent.llm.agenerate(
             prompt=prompt_list,
             tool_schema=selected_tools_schema,
-            tool_choice="none",
-            response_format=ReActOutput,
+            tool_choice=tool_calls,
             system_prompt=react_system_prompt,
         )
 
-        formatted_response = json.loads(rsp.choices[0].message.content)
+        response_message = rsp.choices[0].message
+        react_plan = Plan(
+            step=self.agent.model.steps, llm_plan=response_message, ttl=ttl
+        )
 
-        await self.agent.memory.aadd_to_memory(type="plan", content=formatted_response)
-
-        # ---------------- execute the plan ----------------
-        react_plan = await self.aexecute_tool_call(
-            formatted_response["action"],
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
+        await self.agent.memory.aadd_to_memory(
+            type="plan", content={"content": str(react_plan)}
         )
 
         return react_plan

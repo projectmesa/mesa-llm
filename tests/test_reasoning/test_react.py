@@ -1,37 +1,12 @@
 # tests/test_reasoning/test_react.py
 
 import asyncio
-import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from mesa_llm.reasoning.react import ReActOutput, ReActReasoning
-from mesa_llm.reasoning.reasoning import Observation, Plan
-
-
-class TestReActOutput:
-    """Test the ReActOutput model."""
-
-    def test_react_output_creation(self):
-        """Test creating a ReActOutput with valid data."""
-        output = ReActOutput(
-            reasoning="I need to move to a better position", action="move_north"
-        )
-
-        assert output.reasoning == "I need to move to a better position"
-        assert output.action == "move_north"
-
-    def test_react_output_schema_includes_field_descriptions(self):
-        """Structured output schema should keep the field guidance text."""
-        schema = ReActOutput.model_json_schema()
-
-        assert schema["properties"]["reasoning"]["description"] == (
-            "Step-by-step reasoning about the situation based on memory and observation"
-        )
-        assert schema["properties"]["action"]["description"] == (
-            "The specific action to take without using tools"
-        )
+from mesa_llm.reasoning.react import ReActReasoning
+from mesa_llm.reasoning.reasoning import Observation
 
 
 class TestReActReasoning:
@@ -52,8 +27,6 @@ class TestReActReasoning:
 
         assert "Agent Persona" in prompt
         assert "Agent persona" in prompt
-        assert "reasoning:" in prompt
-        assert "action:" in prompt
 
     def test_get_react_system_prompt_omits_empty_persona(self, mock_agent):
         """Empty agent persona should not add a persona section."""
@@ -103,26 +76,17 @@ class TestReActReasoning:
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
-            content=json.dumps(
-                {"reasoning": "Custom reasoning", "action": "custom_action"}
-            )
+            content="Custom reasoning"
         )
 
-        # Mock execute_tool_call
-        mock_plan = Plan(step=1, llm_plan=Mock())
         reasoning = ReActReasoning(mock_agent)
-        reasoning.execute_tool_call = Mock(return_value=mock_plan)
 
         obs = Observation(step=1, self_state={}, local_state={})
         result = reasoning.plan(obs=obs, prompt="Custom prompt")
 
-        assert result == mock_plan
-        reasoning.execute_tool_call.assert_called_once_with(
-            "custom_action",
-            selected_tools=None,
-            ttl=1,
-            tool_calls="auto",
-        )
+        assert result.step == mock_agent.model.steps
+        assert result.llm_plan.content == "Custom reasoning"
+        assert result.ttl == 1
 
     def test_plan_with_selected_tools(self, llm_response_factory, mock_agent):
         """Test plan method with selected tools."""
@@ -136,26 +100,19 @@ class TestReActReasoning:
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
-            content=json.dumps({"reasoning": "Test reasoning", "action": "test_action"})
+            content="Test reasoning"
         )
 
-        # Mock execute_tool_call
-        mock_plan = Plan(step=1, llm_plan=Mock())
         reasoning = ReActReasoning(mock_agent)
-        reasoning.execute_tool_call = Mock(return_value=mock_plan)
 
         obs = Observation(step=1, self_state={}, local_state={})
         selected_tools = ["tool1", "tool2"]
         result = reasoning.plan(obs=obs, ttl=3, selected_tools=selected_tools)
 
-        assert result == mock_plan
+        assert result.step == mock_agent.model.steps
+        assert result.llm_plan.content == "Test reasoning"
+        assert result.ttl == 3
         mock_agent.tool_manager.get_all_tools_schema.assert_called_with(selected_tools)
-        reasoning.execute_tool_call.assert_called_once_with(
-            "test_action",
-            selected_tools=selected_tools,
-            ttl=3,
-            tool_calls="auto",
-        )
 
     def test_plan_with_custom_tool_calls(self, llm_response_factory, mock_agent):
         """Test plan method forwards a custom execution tool choice."""
@@ -169,23 +126,18 @@ class TestReActReasoning:
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
-            content=json.dumps({"reasoning": "Test reasoning", "action": "test_action"})
+            content="Test reasoning"
         )
 
-        mock_plan = Plan(step=1, llm_plan=Mock())
         reasoning = ReActReasoning(mock_agent)
-        reasoning.execute_tool_call = Mock(return_value=mock_plan)
 
         obs = Observation(step=1, self_state={}, local_state={})
         result = reasoning.plan(obs=obs, tool_calls="required")
 
-        assert result == mock_plan
-        reasoning.execute_tool_call.assert_called_once_with(
-            "test_action",
-            selected_tools=None,
-            ttl=1,
-            tool_calls="required",
-        )
+        assert result.step == mock_agent.model.steps
+        assert result.llm_plan.content == "Test reasoning"
+        assert result.ttl == 1
+        assert mock_agent.llm.generate.call_args.kwargs["tool_choice"] == "required"
 
     def test_plan_no_prompt_error(self, mock_agent):
         """Test plan method raises error when no prompt is provided."""
@@ -215,31 +167,21 @@ class TestReActReasoning:
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
 
         mock_agent.llm.agenerate = AsyncMock(
-            return_value=llm_response_factory(
-                content=json.dumps(
-                    {"reasoning": "Async reasoning", "action": "async_action"}
-                )
-            )
+            return_value=llm_response_factory(content="Async reasoning")
         )
 
-        # Mock aexecute_tool_call
-        mock_plan = Plan(step=1, llm_plan=Mock())
         reasoning = ReActReasoning(mock_agent)
-        reasoning.aexecute_tool_call = AsyncMock(return_value=mock_plan)
 
         obs = Observation(step=1, self_state={}, local_state={})
 
         # Test async execution
         result = asyncio.run(reasoning.aplan(obs=obs, ttl=4))
 
-        assert result == mock_plan
+        assert result.step == mock_agent.model.steps
+        assert result.llm_plan.content == "Async reasoning"
+        assert result.ttl == 4
         mock_agent.llm.agenerate.assert_called_once()
-        reasoning.aexecute_tool_call.assert_called_once_with(
-            "async_action",
-            selected_tools=None,
-            ttl=4,
-            tool_calls="auto",
-        )
+        assert mock_agent.llm.agenerate.call_args.kwargs["tool_choice"] == "auto"
 
     def test_aplan_no_prompt_error(self, mock_agent):
         """Test aplan method raises error when no prompt is provided."""
@@ -268,11 +210,10 @@ class TestReActReasoning:
         mock_agent.tool_manager.get_all_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
-            content=json.dumps({"reasoning": "Test reasoning", "action": "test_action"})
+            content="Test reasoning"
         )
 
         reasoning = ReActReasoning(mock_agent)
-        reasoning.execute_tool_call = Mock(return_value=Plan(step=1, llm_plan=Mock()))
 
         obs = Observation(step=1, self_state={}, local_state={})
         expected_prompt = reasoning.get_react_system_prompt()

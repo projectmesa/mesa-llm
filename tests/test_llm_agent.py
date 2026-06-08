@@ -1159,3 +1159,30 @@ def test_system_prompt_proxies_llm_prompt(basic_agent):
     basic_agent.llm.system_prompt = "LLM prompt"
 
     assert basic_agent.system_prompt == "LLM prompt"
+
+
+def test_observation_excludes_system_prompt(monkeypatch):
+    """ensure system_prompt is NOT included in the observation state to save tokens."""
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+    model = DummyModel()
+    system_prompt = "DUMMY_SYSTEM_PROMPT"
+    agent = LLMAgent(
+        model=model,
+        reasoning=ReActReasoning,
+        system_prompt=system_prompt,
+        vision=-1,
+    )
+    model.grid.place_agent(agent, (1, 1))
+
+    # bypass memory
+    monkeypatch.setattr(agent.memory, "add_to_memory", lambda *args, **kwargs: None)
+
+    obs = agent.generate_obs()
+
+    assert "system_prompt" not in obs.self_state
+    assert system_prompt not in str(obs.self_state)

@@ -364,36 +364,32 @@ class TestReActWithSTLTMemory:
         """ReAct plan() stores formatted response to memory."""
         agent, memory, reasoning = self._setup(monkeypatch)
 
-        rsp_react = make_react_response()
-        rsp_exec = make_llm_response("executing")
-        agent.llm.generate = Mock(side_effect=[rsp_react, rsp_exec])
+        rsp_react = make_llm_response("test reasoning")
+        agent.llm.generate = Mock(return_value=rsp_react)
 
         obs = Observation(step=0, self_state={}, local_state={})
         plan = reasoning.plan(obs=obs)
 
         assert isinstance(plan, Plan)
-        assert memory.step_content["plan"]["reasoning"] == "test reasoning"
-        assert memory.step_content["plan"]["action"] == "test action"
-        assert memory.step_content["plan_execution"]["content"] == str(plan)
-        assert agent.llm.generate.call_count == 2
+        assert memory.step_content["plan"]["content"] == str(plan)
+        assert "plan_execution" not in memory.step_content
+        assert agent.llm.generate.call_count == 1
 
     def test_async_plan_works(self, monkeypatch):
         """aplan() completes with STLTMemory."""
         agent, memory, reasoning = self._setup(monkeypatch)
 
-        rsp_react = make_react_response()
-        rsp_exec = make_llm_response("executing")
-        agent.llm.agenerate = AsyncMock(side_effect=[rsp_react, rsp_exec])
+        rsp_react = make_llm_response("test reasoning")
+        agent.llm.agenerate = AsyncMock(return_value=rsp_react)
         agent.memory.aadd_to_memory = AsyncMock(side_effect=memory.add_to_memory)
 
         obs = Observation(step=0, self_state={}, local_state={})
         plan = asyncio.run(reasoning.aplan(obs=obs))
 
         assert isinstance(plan, Plan)
-        assert memory.step_content["plan"]["reasoning"] == "test reasoning"
-        assert memory.step_content["plan"]["action"] == "test action"
-        assert memory.step_content["plan_execution"]["content"] == str(plan)
-        assert agent.llm.agenerate.await_count == 2
+        assert memory.step_content["plan"]["content"] == str(plan)
+        assert "plan_execution" not in memory.step_content
+        assert agent.llm.agenerate.await_count == 1
 
 
 class TestReActWithShortTermMemory:
