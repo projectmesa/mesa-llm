@@ -194,6 +194,75 @@ class TestModuleLLM:
         )
         assert response is not None
 
+    def test_embed_single_and_list(self, monkeypatch):
+        """embed() returns a single vector for a string and a list for a list,
+        defaulting the model to llm_model and forwarding an explicit one."""
+        captured = {}
+
+        def _fake_embedding(**kwargs):
+            captured.clear()
+            captured.update(kwargs)
+            resp = type("R", (), {})()
+            resp.data = [
+                {"embedding": [float(i)] * 3} for i in range(len(kwargs["input"]))
+            ]
+            return resp
+
+        monkeypatch.setattr("mesa_llm.module_llm.embedding", _fake_embedding)
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+
+        # Single string -> single vector, explicit embedding model forwarded.
+        single = llm.embed("hello", embedding_model="openai/text-embedding-3-small")
+        assert single == [0.0, 0.0, 0.0]
+        assert captured["model"] == "openai/text-embedding-3-small"
+        assert captured["input"] == ["hello"]
+
+        # List -> list of vectors, model defaults to llm_model.
+        many = llm.embed(["a", "b"])
+        assert many == [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]
+        assert captured["model"] == "openai/gpt-4o"
+        assert captured["input"] == ["a", "b"]
+
+    def test_embed_forwards_api_base(self, monkeypatch):
+        """embed() forwards api_base when configured (e.g. for Ollama)."""
+        captured = {}
+
+        def _fake_embedding(**kwargs):
+            captured.update(kwargs)
+            resp = type("R", (), {})()
+            resp.data = [{"embedding": [1.0]}]
+            return resp
+
+        monkeypatch.setattr("mesa_llm.module_llm.embedding", _fake_embedding)
+
+        llm = ModuleLLM(llm_model="ollama/llama2")
+        llm.embed("hi")
+        assert captured["api_base"] == "http://localhost:11434"
+
+    @pytest.mark.asyncio
+    async def test_aembed_single_and_list(self, monkeypatch):
+        """aembed() mirrors embed() for single and list inputs."""
+
+        async def _fake_aembedding(**kwargs):
+            resp = type("R", (), {})()
+            resp.data = [
+                {"embedding": [float(i)] * 2} for i in range(len(kwargs["input"]))
+            ]
+            return resp
+
+        monkeypatch.setattr("mesa_llm.module_llm.aembedding", _fake_aembedding)
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+
+        single = await llm.aembed(
+            "hello", embedding_model="openai/text-embedding-3-small"
+        )
+        assert single == [0.0, 0.0]
+
+        many = await llm.aembed(["a", "b"])
+        assert many == [[0.0, 0.0], [1.0, 1.0]]
+
     def test_generate_rewrites_rate_limit_error_with_openai_docs(self, monkeypatch):
         original_error = RateLimitError(
             "per-minute limit hit", "openai", "openai/gpt-4o"

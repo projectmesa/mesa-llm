@@ -23,6 +23,31 @@ class MyAgent(LLMAgent):
       )
 ```
 
+### Episodic memory with relevance scoring
+
+`EpisodicMemory` retrieves the most useful memories by combining **importance**,
+**recency**, and—when an `embedding_model` is configured—**relevance** (the
+cosine similarity between a focal query and each memory's embedding), following
+the Generative Agents retrieval design. Without an `embedding_model` the
+relevance term is skipped and retrieval falls back to importance + recency.
+
+```python
+from mesa_llm.memory.episodic_memory import EpisodicMemory
+
+self.memory = EpisodicMemory(
+      agent=self,
+      llm_model="openai/gpt-4o-mini",          # used to grade event importance
+      embedding_model="openai/text-embedding-3-small",  # enables relevance
+      relevance_weight=1.0,                     # weight of the relevance term
+      importance_weight=1.0,
+      recency_weight=1.0,
+)
+
+# Retrieval can be steered with an explicit focal query; when omitted, the most
+# recent entry is used as the query.
+self.memory.get_prompt_ready(query="where is the nearest food source?")
+```
+
 ## Core memory interfaces
 
 ```{eval-rst}
