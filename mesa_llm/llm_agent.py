@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from mesa.agent import Agent
@@ -20,6 +21,7 @@ from mesa_llm import Plan
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.module_llm import ModuleLLM
 from mesa_llm.reasoning.reasoning import (
+    _UNSET,
     Observation,
     Reasoning,
 )
@@ -49,11 +51,14 @@ class LLMAgent(Agent):
             the agent each step.
         api_base (str | None): Optional custom LiteLLM-compatible base URL for
             self-hosted or remote inference endpoints.
+        tools (list[Callable | str] | tuple[Callable | str, ...] | None):
+            Explicit tools exposed to this agent. ``None`` and ``[]`` expose
+            no tools; pass a tool-set factory such as ``legacy_tools()`` to
+            opt in to compatibility built-ins.
 
     Attributes:
         llm (ModuleLLM): The internal LLM interface used by the agent.
         memory (Memory | None): The memory module attached to this agent, if any.
-        tool_manager (ToolManager): The tool registry available to the agent.
     """
 
     def __init__(
@@ -66,6 +71,7 @@ class LLMAgent(Agent):
         internal_state: list[str] | str | None = None,
         step_prompt: str | None = None,
         api_base: str | None = None,
+        tools: list[Callable | str] | tuple[Callable | str, ...] | None = None,
     ):
         super().__init__(model=model)
 
@@ -83,7 +89,7 @@ class LLMAgent(Agent):
             api_base=api_base,
         )
 
-        self.tool_manager = ToolManager()
+        self._tool_manager = ToolManager(tools=tools)
         self.vision = vision
         self.reasoning = reasoning(agent=self)
         self.system_prompt = system_prompt
@@ -113,6 +119,26 @@ class LLMAgent(Agent):
     def system_prompt(self, value: str | None):
         self.llm.system_prompt = value
 
+    @property
+    def tool_manager(self) -> ToolManager:
+        warnings.warn(
+            "`agent.tool_manager` is deprecated; configure tools with "
+            "`LLMAgent(..., tools=...)` and treat the manager as internal.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._tool_manager
+
+    @tool_manager.setter
+    def tool_manager(self, value: ToolManager):
+        warnings.warn(
+            "`agent.tool_manager = ...` is deprecated; pass tools explicitly "
+            "or assign `agent._tool_manager` only inside framework internals.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._tool_manager = value
+
     def _format_message_status(
         self, message: str, delivered_ids: list[int], skipped_ids: list[int]
     ) -> str:
@@ -134,9 +160,15 @@ class LLMAgent(Agent):
         """
         self._current_plan = plan
 
-        tool_call_resp = await self.tool_manager.acall_tools(
-            agent=self, llm_response=plan.llm_plan
-        )
+        plan_tools = getattr(plan, "tools", _UNSET)
+        if plan_tools is _UNSET:
+            tool_call_resp = await self._tool_manager.acall_tools(
+                agent=self, llm_response=plan.llm_plan
+            )
+        else:
+            tool_call_resp = await self._tool_manager.acall_tools(
+                agent=self, llm_response=plan.llm_plan, tools=plan_tools
+            )
 
         await self.memory.aadd_to_memory(
             type="action",
@@ -158,9 +190,15 @@ class LLMAgent(Agent):
         self._current_plan = plan
 
         # Execute tool calls
-        tool_call_resp = self.tool_manager.call_tools(
-            agent=self, llm_response=plan.llm_plan
-        )
+        plan_tools = getattr(plan, "tools", _UNSET)
+        if plan_tools is _UNSET:
+            tool_call_resp = self._tool_manager.call_tools(
+                agent=self, llm_response=plan.llm_plan
+            )
+        else:
+            tool_call_resp = self._tool_manager.call_tools(
+                agent=self, llm_response=plan.llm_plan, tools=plan_tools
+            )
 
         # Add to memory
         self.memory.add_to_memory(

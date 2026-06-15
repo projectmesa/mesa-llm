@@ -100,7 +100,7 @@ class TestReActReasoning:
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
             content=json.dumps(
@@ -119,13 +119,12 @@ class TestReActReasoning:
         assert result == mock_plan
         reasoning.execute_tool_call.assert_called_once_with(
             "custom_action",
-            selected_tools=None,
             ttl=1,
             tool_calls="auto",
         )
 
-    def test_plan_with_selected_tools(self, llm_response_factory, mock_agent):
-        """Test plan method with selected tools."""
+    def test_plan_with_tools(self, llm_response_factory, mock_agent):
+        """Test plan method with explicit tools."""
         mock_agent.step_prompt = "Default step prompt"
         mock_agent.memory = Mock()
         mock_agent.memory.get_prompt_ready.return_value = "memory1"
@@ -133,7 +132,7 @@ class TestReActReasoning:
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
             content=json.dumps({"reasoning": "Test reasoning", "action": "test_action"})
@@ -145,14 +144,14 @@ class TestReActReasoning:
         reasoning.execute_tool_call = Mock(return_value=mock_plan)
 
         obs = Observation(step=1, self_state={}, local_state={})
-        selected_tools = ["tool1", "tool2"]
-        result = reasoning.plan(obs=obs, ttl=3, selected_tools=selected_tools)
+        tools = ["tool1", "tool2"]
+        result = reasoning.plan(obs=obs, ttl=3, tools=tools)
 
         assert result == mock_plan
-        mock_agent.tool_manager.get_all_tools_schema.assert_called_with(selected_tools)
+        mock_agent.tool_manager.get_tools_schema.assert_called_with(tools=tools)
         reasoning.execute_tool_call.assert_called_once_with(
             "test_action",
-            selected_tools=selected_tools,
+            tools=tools,
             ttl=3,
             tool_calls="auto",
         )
@@ -166,7 +165,7 @@ class TestReActReasoning:
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
             content=json.dumps({"reasoning": "Test reasoning", "action": "test_action"})
@@ -182,7 +181,6 @@ class TestReActReasoning:
         assert result == mock_plan
         reasoning.execute_tool_call.assert_called_once_with(
             "test_action",
-            selected_tools=None,
             ttl=1,
             tool_calls="required",
         )
@@ -212,7 +210,7 @@ class TestReActReasoning:
         mock_agent.memory.aadd_to_memory = AsyncMock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
 
         mock_agent.llm.agenerate = AsyncMock(
             return_value=llm_response_factory(
@@ -236,7 +234,6 @@ class TestReActReasoning:
         mock_agent.llm.agenerate.assert_called_once()
         reasoning.aexecute_tool_call.assert_called_once_with(
             "async_action",
-            selected_tools=None,
             ttl=4,
             tool_calls="auto",
         )
@@ -265,7 +262,7 @@ class TestReActReasoning:
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
 
         mock_agent.llm.generate.return_value = llm_response_factory(
             content=json.dumps({"reasoning": "Test reasoning", "action": "test_action"})

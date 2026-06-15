@@ -3,6 +3,7 @@
 import json
 import logging
 import warnings
+from unittest.mock import Mock
 
 import pytest
 from mesa.agent import Agent
@@ -14,6 +15,8 @@ from mesa_llm import Plan
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_memory import ShortTermMemory
 from mesa_llm.reasoning.react import ReActReasoning
+from mesa_llm.tools.tool_decorator import tool
+from mesa_llm.tools.tool_manager import ToolManager
 
 
 def test_apply_plan_adds_to_memory(monkeypatch):
@@ -68,6 +71,98 @@ def test_apply_plan_adds_to_memory(monkeypatch):
     assert len(actions) == 1
     assert "tool_calls" in actions[0]
     assert actions[0]["tool_calls"][0] == {"tool": "foo", "argument": "bar"}
+
+
+def test_llm_agent_tools_constructor_tri_state():
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+
+    @tool
+    def agent_constructor_tool(agent, value: int) -> int:
+        """Agent constructor tool.
+        Args:
+            agent: The agent making the request (provided automatically)
+            value: Input.
+        Returns:
+            Output.
+        """
+        return value
+
+    model = DummyModel()
+
+    no_tools_agent = LLMAgent(model, reasoning=ReActReasoning, tools=None)
+    empty_tools_agent = LLMAgent(model, reasoning=ReActReasoning, tools=[])
+    explicit_tools_agent = LLMAgent(
+        model,
+        reasoning=ReActReasoning,
+        tools=[agent_constructor_tool],
+    )
+
+    assert no_tools_agent._tool_manager.tools == {}
+    assert empty_tools_agent._tool_manager.tools == {}
+    assert explicit_tools_agent._tool_manager.tools == {
+        "agent_constructor_tool": agent_constructor_tool
+    }
+
+
+def test_llm_agent_tool_manager_property_is_deprecated():
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+
+    agent = LLMAgent(DummyModel(), reasoning=ReActReasoning)
+    replacement = ToolManager()
+
+    with pytest.warns(DeprecationWarning, match="agent.tool_manager"):
+        assert agent.tool_manager is agent._tool_manager
+
+    with pytest.warns(DeprecationWarning, match="agent.tool_manager"):
+        agent.tool_manager = replacement
+
+    assert agent._tool_manager is replacement
+
+
+def test_apply_plan_executes_per_call_tool_selector():
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+
+    @tool
+    def override_apply_tool(agent, value: int) -> str:
+        """Override apply tool.
+        Args:
+            agent: The agent making the request (provided automatically)
+            value: Input.
+        Returns:
+            Output.
+        """
+        return f"{agent.unique_id}:{value}"
+
+    model = DummyModel()
+    agent = LLMAgent(model, reasoning=ReActReasoning, tools=[override_apply_tool])
+    agent.memory = Mock()
+
+    mock_tool_call = Mock()
+    mock_tool_call.id = "call_override"
+    mock_tool_call.function.name = "override_apply_tool"
+    mock_tool_call.function.arguments = '{"value": "7"}'
+
+    mock_message = Mock()
+    mock_message.tool_calls = [mock_tool_call]
+
+    plan = Plan(step=0, llm_plan=mock_message, tools=[override_apply_tool])
+
+    result = agent.apply_plan(plan)
+
+    assert result == [
+        {
+            "tool_call_id": "call_override",
+            "role": "tool",
+            "name": "override_apply_tool",
+            "response": f"{agent.unique_id}:7",
+        }
+    ]
 
 
 def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):

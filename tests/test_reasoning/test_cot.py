@@ -10,6 +10,8 @@ from mesa.space import MultiGrid
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.reasoning.cot import CoTReasoning
 from mesa_llm.reasoning.reasoning import Observation, Plan
+from mesa_llm.tools.tool_decorator import tool
+from mesa_llm.tools.tool_manager import ToolManager
 
 
 class TestCoTReasoning:
@@ -120,7 +122,7 @@ class TestCoTReasoning:
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
         mock_agent._step_display_data = {}
 
         mock_plan_response = llm_response_factory(
@@ -135,8 +137,8 @@ class TestCoTReasoning:
         calls = mock_agent.memory.add_to_memory.call_args_list
         assert not any(call.kwargs.get("type") == "observation" for call in calls)
 
-    def test_plan_with_selected_tools(self, llm_response_factory, mock_agent):
-        """Test plan method with selected tools."""
+    def test_plan_with_tools(self, llm_response_factory, mock_agent):
+        """Test plan method with explicit tools."""
         mock_agent.step_prompt = "You are an agent in a simulatio"
         mock_agent.memory = Mock()
         mock_agent.memory.format_long_term.return_value = "Long term memory"
@@ -144,7 +146,7 @@ class TestCoTReasoning:
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
         mock_agent._step_display_data = {}  # Use real dict instead of Mock
         mock_plan_response = llm_response_factory(
             content="Thought 1: Test reasoning\nAction: test_action"
@@ -156,14 +158,83 @@ class TestCoTReasoning:
         reasoning = CoTReasoning(mock_agent)
 
         obs = Observation(step=1, self_state={}, local_state={})
-        selected_tools = ["tool1", "tool2"]
-        result = reasoning.plan(obs=obs, ttl=3, selected_tools=selected_tools)
+        tools = ["tool1", "tool2"]
+        result = reasoning.plan(obs=obs, ttl=3, tools=tools)
 
         assert isinstance(result, Plan)
         assert result.ttl == 3
-        # Check that tool schema was called with selected tools
-        assert mock_agent.tool_manager.get_all_tools_schema.call_count == 2
+        # Check that tool schema was called with explicit tools.
+        assert mock_agent.tool_manager.get_tools_schema.call_count == 2
+        mock_agent.tool_manager.get_tools_schema.assert_any_call(tools=tools)
         assert mock_agent.llm.generate.call_args_list[1].kwargs["tool_choice"] == "auto"
+
+    def test_plan_tools_sentinel_semantics(self, llm_response_factory, mock_agent):
+        """Omitted tools inherit; explicit per-call tools override."""
+
+        @tool
+        def inherited_cot_tool(agent, x: int) -> int:
+            """Inherited CoT tool.
+            Args:
+                agent: The agent making the request (provided automatically)
+                x: Input.
+            Returns:
+                Output.
+            """
+            return x
+
+        @tool
+        def override_cot_tool(agent, y: int) -> int:
+            """Override CoT tool.
+            Args:
+                agent: The agent making the request (provided automatically)
+                y: Input.
+            Returns:
+                Output.
+            """
+            return y
+
+        mock_agent.step_prompt = "You are an agent in a simulation"
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent._tool_manager = ToolManager(
+            tools=[inherited_cot_tool, override_cot_tool]
+        )
+        mock_agent._step_display_data = {}
+
+        reasoning = CoTReasoning(mock_agent)
+        obs = Observation(step=1, self_state={}, local_state={})
+
+        def schema_names_for_plan(**kwargs):
+            mock_plan_response = llm_response_factory(
+                content="Thought 1: Test reasoning\nAction: test_action"
+            )
+            mock_exec_response = llm_response_factory(content="executor response")
+            mock_agent.llm.generate.reset_mock()
+            mock_agent.llm.generate.side_effect = [
+                mock_plan_response,
+                mock_exec_response,
+            ]
+
+            reasoning.plan(obs=obs, **kwargs)
+
+            return [
+                [schema["function"]["name"] for schema in call.kwargs["tool_schema"]]
+                for call in mock_agent.llm.generate.call_args_list
+            ]
+
+        assert schema_names_for_plan() == [
+            ["inherited_cot_tool", "override_cot_tool"],
+            ["inherited_cot_tool", "override_cot_tool"],
+        ]
+        assert schema_names_for_plan(tools=None) == [[], []]
+        assert schema_names_for_plan(tools=[]) == [[], []]
+        assert schema_names_for_plan(tools=[override_cot_tool]) == [
+            ["override_cot_tool"],
+            ["override_cot_tool"],
+        ]
 
     def test_plan_with_custom_tool_calls(self, llm_response_factory, mock_agent):
         """Test plan method forwards a custom execution tool choice."""
@@ -174,7 +245,7 @@ class TestCoTReasoning:
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
         mock_agent._step_display_data = {}
         mock_plan_response = llm_response_factory(
             content="Thought 1: Test reasoning\nAction: test_action"
@@ -214,7 +285,7 @@ class TestCoTReasoning:
         mock_agent.memory.aadd_to_memory = AsyncMock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
         mock_agent._step_display_data = {}
 
         mock_plan_response = llm_response_factory(
@@ -240,7 +311,7 @@ class TestCoTReasoning:
         mock_agent.memory.aadd_to_memory = AsyncMock()
         mock_agent.llm = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
         mock_agent._step_display_data = {}  # Use real dict instead of Mock
 
         mock_plan_response = llm_response_factory(
@@ -275,7 +346,7 @@ class TestCoTReasoning:
         mock_agent.memory.format_short_term.return_value = "Short term memory"
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.tool_manager = Mock()
-        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent.tool_manager.get_tools_schema.return_value = {}
         mock_agent._step_display_data = {}
 
         mock_plan_response = llm_response_factory(

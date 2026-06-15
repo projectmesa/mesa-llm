@@ -2,9 +2,11 @@ import copy
 from typing import TYPE_CHECKING
 
 from mesa_llm.reasoning.reasoning import (
+    _UNSET,
     Observation,
     Plan,
     Reasoning,
+    ToolSelection,
 )
 
 if TYPE_CHECKING:
@@ -22,8 +24,8 @@ class ReWOOReasoning(Reasoning):
         - **current_obs** (Observation) - Last observation used for planning
 
     Methods:
-        - **plan(prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto")** → *Plan* - Generate synchronous plan with ReWOO reasoning
-        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto")** → *Plan* - Generate asynchronous plan with ReWOO reasoning
+        - **plan(prompt, obs=None, ttl=1, tools=<inherit>, tool_calls="auto")** → *Plan* - Generate synchronous plan with ReWOO reasoning
+        - **async aplan(prompt, obs=None, ttl=1, tools=<inherit>, tool_calls="auto")** → *Plan* - Generate asynchronous plan
     """
 
     def __init__(self, agent: "LLMAgent"):
@@ -31,6 +33,7 @@ class ReWOOReasoning(Reasoning):
         self.remaining_tool_calls = 0  # Initialize remaining tool calls
         self.current_plan: Plan | None = None
         self.current_obs: Observation | None = None
+        self.current_tools: ToolSelection | object = _UNSET
 
     def get_rewoo_system_prompt(self, obs: Observation) -> str:
         memory = getattr(self.agent, "memory", None)
@@ -113,17 +116,18 @@ class ReWOOReasoning(Reasoning):
         prompt: str | None = None,
         obs: Observation | None = None,
         ttl: int = 1,
-        selected_tools: list[str] | None = None,
+        tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
+        selected_tools: ToolSelection | object = _UNSET,
     ) -> Plan:
         """
         Plan the next (ReWOO) action based on the current observation and the
         agent's memory.
 
-        ``selected_tools`` is forwarded to ``ToolManager.get_all_tools_schema()``.
-        Omitting it or passing ``None`` uses the default behavior of exposing
-        all tools, ``[]`` exposes no tools, and a non-empty list restricts
-        planning/execution to the named tools.
+        ``tools`` controls provider tool exposure. Omitting it inherits the
+        agent's configured tools. Explicit ``None`` or ``[]`` exposes no tools.
+        A callable, string name, or sequence exposes exactly those configured
+        tools.
 
         ``tool_calls`` controls the execution-phase LiteLLM ``tool_choice``.
         The planning pass still keeps tool use disabled with ``"none"``.
@@ -147,7 +151,12 @@ class ReWOOReasoning(Reasoning):
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
             current_plan = copy.copy(self.current_plan)
             current_plan.tool_calls = tool_call
-            return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
+            return Plan(
+                llm_plan=current_plan,
+                step=self.current_obs.step,
+                ttl=ttl,
+                tools=self.current_tools,
+            )
 
         # If no prompt is provided, use the agent's default step prompt
         if prompt is None:
@@ -162,10 +171,11 @@ class ReWOOReasoning(Reasoning):
             self.current_obs = obs
         llm = self.agent.llm
         system_prompt = self.get_rewoo_system_prompt(self.current_obs)
+        tools = self._resolve_tools_argument(tools, selected_tools)
 
         rsp = llm.generate(
             prompt=prompt,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
+            tool_schema=self._get_tools_schema(tools),
             tool_choice="none",
             system_prompt=system_prompt,
         )
@@ -174,17 +184,18 @@ class ReWOOReasoning(Reasoning):
             type="plan", content={"content": rsp.choices[0].message.content}
         )
 
+        execute_kwargs = {"ttl": ttl, "tool_calls": tool_calls}
+        if tools is not _UNSET:
+            execute_kwargs["tools"] = tools
         rewoo_plan = self.execute_tool_call(
-            rsp.choices[0].message.content,
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
+            rsp.choices[0].message.content, **execute_kwargs
         )
         # Count the number of tool calls in the response and set remaining_tool_calls
         self.remaining_tool_calls = len(
             getattr(rewoo_plan.llm_plan, "tool_calls", None) or []
         )
         self.current_plan = rewoo_plan.llm_plan
+        self.current_tools = tools
 
         return rewoo_plan
 
@@ -193,16 +204,14 @@ class ReWOOReasoning(Reasoning):
         prompt: str | None = None,
         obs: Observation | None = None,
         ttl: int = 1,
-        selected_tools: list[str] | None = None,
+        tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
+        selected_tools: ToolSelection | object = _UNSET,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
 
-        ``selected_tools`` follows the same contract as ``plan()``: omitting
-        it or passing ``None`` uses the default behavior of exposing all
-        tools, ``[]`` exposes no tools, and a non-empty list restricts
-        planning/execution to the named tools.
+        ``tools`` follows the same contract as ``plan()``.
 
         ``tool_calls`` controls the execution-phase LiteLLM ``tool_choice``.
         The planning pass still keeps tool use disabled with ``"none"``.
@@ -226,7 +235,12 @@ class ReWOOReasoning(Reasoning):
             tool_call = [self.current_plan.tool_calls[index_of_tool]]
             current_plan = copy.copy(self.current_plan)
             current_plan.tool_calls = tool_call
-            return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
+            return Plan(
+                llm_plan=current_plan,
+                step=self.current_obs.step,
+                ttl=ttl,
+                tools=self.current_tools,
+            )
 
         # If no prompt is provided, use the agent's default step prompt
         if prompt is None:
@@ -241,10 +255,11 @@ class ReWOOReasoning(Reasoning):
             self.current_obs = obs
         llm = self.agent.llm
         system_prompt = self.get_rewoo_system_prompt(self.current_obs)
+        tools = self._resolve_tools_argument(tools, selected_tools)
 
         rsp = await llm.agenerate(
             prompt=prompt,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
+            tool_schema=self._get_tools_schema(tools),
             tool_choice="none",
             system_prompt=system_prompt,
         )
@@ -253,16 +268,17 @@ class ReWOOReasoning(Reasoning):
             type="plan", content={"content": rsp.choices[0].message.content}
         )
 
+        execute_kwargs = {"ttl": ttl, "tool_calls": tool_calls}
+        if tools is not _UNSET:
+            execute_kwargs["tools"] = tools
         rewoo_plan = await self.aexecute_tool_call(
-            rsp.choices[0].message.content,
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
+            rsp.choices[0].message.content, **execute_kwargs
         )
         # Count the number of tool calls in the response and set remaining_tool_calls
         self.remaining_tool_calls = len(
             getattr(rewoo_plan.llm_plan, "tool_calls", None) or []
         )
         self.current_plan = rewoo_plan.llm_plan
+        self.current_tools = tools
 
         return rewoo_plan

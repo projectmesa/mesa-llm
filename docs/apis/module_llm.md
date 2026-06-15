@@ -54,22 +54,38 @@ The `api_base` parameter is supported across all layers of Mesa-LLM: `ModuleLLM`
 
 ## Tool Integration
 
+For agent workflows, configure tools on `LLMAgent` instead of constructing a
+tool manager directly. `ModuleLLM` remains the lower-level generation wrapper;
+agent reasoning handles tool schemas and execution through the agent's configured
+tools.
+
 ```python
-from mesa_llm.tools.tool_manager import ToolManager
+from mesa.model import Model
 
-tool_manager = ToolManager()
-llm = ModuleLLM(llm_model="openai/gpt-4o")
+from mesa_llm.llm_agent import LLMAgent
+from mesa_llm.reasoning.cot import CoTReasoning
+from mesa_llm.tools.tool_decorator import tool
 
-# Generate with tool calling
-response = llm.generate(
-   prompt="Move to a better location",
-   tool_schema=tool_manager.get_all_tools_schema(),
-   tool_choice="auto"
+@tool
+def inspect_status(agent) -> str:
+   """Inspect status.
+   Args:
+      agent: The agent making the request (provided automatically)
+   Returns:
+      A compact status string.
+   """
+   return str(agent)
+
+model = Model()
+agent = LLMAgent(
+   model=model,
+   reasoning=CoTReasoning,
+   llm_model="openai/gpt-4o",
+   tools=[inspect_status],
 )
 
-# Handle tool calls
-if response.choices[0].message.tool_calls:
-   tool_manager.call_tools(agent=agent, llm_response=response.choices[0].message)
+plan = agent.reasoning.plan(prompt="Inspect the current status")
+agent.apply_plan(plan)
 ```
 
 ## Asynchronous Usage

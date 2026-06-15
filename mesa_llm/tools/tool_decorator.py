@@ -21,8 +21,13 @@ _TOOL_CALLBACKS: list[Callable[[Callable], None]] = []
 
 
 def add_tool_callback(callback: Callable[[Callable], None]):
-    """Add a callback to be called when a new tool is registered"""
-    _TOOL_CALLBACKS.append(callback)
+    """Deprecated no-op for the old implicit global tool propagation hook."""
+    warnings.warn(
+        "`add_tool_callback` is deprecated and no longer called for bare "
+        "`@tool` registrations; configure tools explicitly instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 # ---------- helper functions ----------------------------------------------------
@@ -319,11 +324,20 @@ def tool(
     ignore_agent: bool = True,
 ):
     """
-    Converts Python functions into LLM-compatible tools by automatically generating JSON schemas from type hints and docstrings. Handles parameter validation, type conversion, and integration with the global tool registry. This module automatically extracts parameter descriptions from Google-style docstrings, injects calling agents into functions expecting an `agent` parameter, and integrates with the global tool registry for automatic availability across all ToolManager instances.
+    Convert a Python function into an LLM-compatible tool.
+
+    The decorator generates a JSON schema from type hints and Google-style
+    docstrings, optionally omitting an ``agent`` parameter that Mesa-LLM injects
+    during execution. Passing ``tool_manager=`` registers the decorated function
+    directly with that manager. Bare ``@tool`` registration stores the function
+    in the global registry so callers can opt in explicitly by name or by
+    configuring a manager or agent with that tool; it does not make the tool
+    automatically available to every manager.
 
     Args:
         fn: The function to decorate.
-        tool_manager : the optional tool manager to add the function to
+        tool_manager: Optional tool manager to register the function with.
+        ignore_agent: Whether to omit the ``agent`` parameter from the schema.
 
     Returns:
         The decorated function.
@@ -386,8 +400,6 @@ def tool(
             tool_manager.register(func)
         else:
             _GLOBAL_TOOL_REGISTRY[name] = func
-            for callback in _TOOL_CALLBACKS:
-                callback(func)
 
         return func
 

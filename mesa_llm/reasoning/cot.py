@@ -1,6 +1,12 @@
 from typing import TYPE_CHECKING
 
-from mesa_llm.reasoning.reasoning import Observation, Plan, Reasoning
+from mesa_llm.reasoning.reasoning import (
+    _UNSET,
+    Observation,
+    Plan,
+    Reasoning,
+    ToolSelection,
+)
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -14,8 +20,8 @@ class CoTReasoning(Reasoning):
         - **agent** (LLMAgent reference)
 
     Methods:
-        - **plan(obs, ttl=1, prompt=None, selected_tools=None, tool_calls="auto")** → *Plan* - Generate synchronous plan with CoT reasoning
-        - **async aplan(obs, ttl=1, prompt=None, selected_tools=None, tool_calls="auto")** → *Plan* - Generate asynchronous plan with CoT reasoning
+        - **plan(obs, ttl=1, prompt=None, tools=<inherit>, tool_calls="auto")** → *Plan* - Generate synchronous plan with CoT reasoning
+        - **async aplan(obs, ttl=1, prompt=None, tools=<inherit>, tool_calls="auto")** → *Plan* - Generate asynchronous plan with CoT reasoning
 
     Reasoning Format:
         Thought 1: [Initial reasoning based on observation]
@@ -99,17 +105,18 @@ class CoTReasoning(Reasoning):
         prompt: str | None = None,
         obs: Observation | None = None,
         ttl: int = 1,
-        selected_tools: list[str] | None = None,
+        tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
+        selected_tools: ToolSelection | object = _UNSET,
     ) -> Plan:
         """
         Plan the next (CoT) action based on the current observation and the
         agent's memory.
 
-        ``selected_tools`` is forwarded to ``ToolManager.get_all_tools_schema()``.
-        Omitting it or passing ``None`` uses the default behavior of exposing
-        all tools, ``[]`` exposes no tools, and a non-empty list restricts
-        planning/execution to the named tools.
+        ``tools`` controls provider tool exposure. Omitting it inherits the
+        agent's configured tools. Explicit ``None`` or ``[]`` exposes no tools.
+        A callable, string name, or sequence exposes exactly those configured
+        tools.
 
         ``tool_calls`` controls the execution-phase LiteLLM ``tool_choice``.
         The reasoning pass still keeps tool use disabled with ``"none"``.
@@ -134,12 +141,13 @@ class CoTReasoning(Reasoning):
         if obs is None:
             obs = self.agent.generate_obs()
 
+        tools = self._resolve_tools_argument(tools, selected_tools)
         llm = self.agent.llm
         system_prompt = self.get_cot_system_prompt(obs)
 
         rsp = llm.generate(
             prompt=prompt,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
+            tool_schema=self._get_tools_schema(tools),
             tool_choice="none",
             system_prompt=system_prompt,
         )
@@ -152,12 +160,10 @@ class CoTReasoning(Reasoning):
         # Pass plan content to agent for display
         if hasattr(self.agent, "_step_display_data"):
             self.agent._step_display_data["plan_content"] = chaining_message
-        cot_plan = self.execute_tool_call(
-            chaining_message,
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
-        )
+        execute_kwargs = {"ttl": ttl, "tool_calls": tool_calls}
+        if tools is not _UNSET:
+            execute_kwargs["tools"] = tools
+        cot_plan = self.execute_tool_call(chaining_message, **execute_kwargs)
 
         return cot_plan
 
@@ -166,16 +172,14 @@ class CoTReasoning(Reasoning):
         prompt: str | None = None,
         obs: Observation | None = None,
         ttl: int = 1,
-        selected_tools: list[str] | None = None,
+        tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
+        selected_tools: ToolSelection | object = _UNSET,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
 
-        ``selected_tools`` follows the same contract as ``plan()``: omitting
-        it or passing ``None`` uses the default behavior of exposing all
-        tools, ``[]`` exposes no tools, and a non-empty list restricts
-        planning/execution to the named tools.
+        ``tools`` follows the same contract as ``plan()``.
 
         ``tool_calls`` controls the execution-phase LiteLLM ``tool_choice``.
         The reasoning pass still keeps tool use disabled with ``"none"``.
@@ -200,12 +204,13 @@ class CoTReasoning(Reasoning):
         if obs is None:
             obs = await self.agent.agenerate_obs()
 
+        tools = self._resolve_tools_argument(tools, selected_tools)
         llm = self.agent.llm
         system_prompt = self.get_cot_system_prompt(obs)
 
         rsp = await llm.agenerate(
             prompt=prompt,
-            tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
+            tool_schema=self._get_tools_schema(tools),
             tool_choice="none",
             system_prompt=system_prompt,
         )
@@ -218,11 +223,9 @@ class CoTReasoning(Reasoning):
         # Pass plan content to agent for display
         if hasattr(self.agent, "_step_display_data"):
             self.agent._step_display_data["plan_content"] = chaining_message
-        cot_plan = await self.aexecute_tool_call(
-            chaining_message,
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
-        )
+        execute_kwargs = {"ttl": ttl, "tool_calls": tool_calls}
+        if tools is not _UNSET:
+            execute_kwargs["tools"] = tools
+        cot_plan = await self.aexecute_tool_call(chaining_message, **execute_kwargs)
 
         return cot_plan

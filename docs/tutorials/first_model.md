@@ -151,7 +151,7 @@ class SimpleAgent(LLMAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=[]
+            tools=[]
         )
 
         print(plan)

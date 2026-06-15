@@ -1,8 +1,5 @@
 from mesa_llm.llm_agent import LLMAgent
-from mesa_llm.tools.tool_manager import ToolManager
-
-seller_tool_manager = ToolManager()
-buyer_tool_manager = ToolManager()
+from mesa_llm.tools.defaults import legacy_tools
 
 
 def get_dialogue_history(agent, max_messages: int = 5) -> str:
@@ -87,9 +84,9 @@ class SellerAgent(LLMAgent):
             api_base=api_base,
             vision=vision,
             internal_state=internal_state,
+            tools=legacy_tools(),
         )
 
-        self.tool_manager = seller_tool_manager
         self.sales = 0
 
     def step(self):
@@ -105,9 +102,7 @@ class SellerAgent(LLMAgent):
             "Use the dialogue history to inform your next response (e.g., if you already offered a price, stick to it or negotiate)."
         )
 
-        plan = self.reasoning.plan(
-            prompt=prompt, obs=observation, selected_tools=["speak_to"]
-        )
+        plan = self.reasoning.plan(prompt=prompt, obs=observation, tools=["speak_to"])
         self.apply_plan(plan)
 
     async def astep(self):
@@ -124,7 +119,7 @@ class SellerAgent(LLMAgent):
         )
 
         plan = await self.reasoning.aplan(
-            prompt=prompt, obs=observation, selected_tools=["speak_to"]
+            prompt=prompt, obs=observation, tools=["speak_to"]
         )
         self.apply_plan(plan)
 
@@ -149,8 +144,8 @@ class BuyerAgent(LLMAgent):
             api_base=api_base,
             vision=vision,
             internal_state=internal_state,
+            tools=[*legacy_tools(), "buy_product"],
         )
-        self.tool_manager = buyer_tool_manager
         self.budget = budget
         self.products = []
 
@@ -171,7 +166,7 @@ class BuyerAgent(LLMAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=["teleport_to_location", "speak_to", "buy_product"],
+            tools=["teleport_to_location", "speak_to", "buy_product"],
         )
         self.apply_plan(plan)
 
@@ -192,6 +187,6 @@ class BuyerAgent(LLMAgent):
         plan = await self.reasoning.aplan(
             prompt=prompt,
             obs=observation,
-            selected_tools=["teleport_to_location", "speak_to", "buy_product"],
+            tools=["teleport_to_location", "speak_to", "buy_product"],
         )
         self.apply_plan(plan)

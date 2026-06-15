@@ -9,6 +9,15 @@ from .parallel_stepping import (
 )
 from .reasoning.reasoning import Observation, Plan
 from .recording.record_model import record_model
+from .tools.defaults import (
+    default_tools,
+    environment_tools,
+    external_tools,
+    legacy_tools,
+    math_tools,
+    social_query_tools,
+    spatial_tools,
+)
 from .tools.tool_manager import ToolManager
 
 # Enable automatic parallel stepping when mesa_llm is imported
@@ -18,8 +27,15 @@ __all__ = [
     "Observation",
     "Plan",
     "ToolManager",
+    "default_tools",
     "enable_automatic_parallel_stepping",
+    "environment_tools",
+    "external_tools",
+    "legacy_tools",
+    "math_tools",
     "record_model",
+    "social_query_tools",
+    "spatial_tools",
     "step_agents_parallel",
     "step_agents_parallel_sync",
 ]

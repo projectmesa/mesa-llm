@@ -7,12 +7,26 @@ The reasoning system in Mesa-LLM provides different cognitive strategies for age
 ```python
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.reasoning.cot import CoTReasoning
+from mesa_llm.tools.defaults import legacy_tools
+from mesa_llm.tools.tool_decorator import tool
+
+@tool
+def arrest_citizen(agent, citizen_id: int) -> str:
+   """Arrest a citizen in this model.
+   Args:
+      agent: The agent making the request (provided automatically)
+      citizen_id: Citizen to arrest.
+   Returns:
+      Arrest status.
+   """
+   return agent.arrest_citizen(citizen_id)
 
 class MyAgent(LLMAgent):
    def __init__(self, model, **kwargs):
       super().__init__(
             model=model,
             reasoning=CoTReasoning,  # Specify reasoning strategy
+            tools=[*legacy_tools(), arrest_citizen],
             **kwargs
       )
 
@@ -21,7 +35,7 @@ class MyAgent(LLMAgent):
       obs = self.generate_obs()
       plan = self.reasoning.plan(
             obs=obs,
-            selected_tools=["move_one_step", "speak_to"]
+            tools=["move_one_step", "speak_to"]
       )
       self.apply_plan(plan)
 
@@ -38,10 +52,12 @@ async def astep(self):
    plan = await self.reasoning.aplan(
       prompt=self.step_prompt,
       obs=obs,
-      selected_tools=["move_one_step", "arrest_citizen"]
+      tools=["move_one_step", "arrest_citizen"]
    )
    self.apply_plan(plan)
 ```
+
+Omitting per-call `tools` inherits the tools configured on the agent. Passing `tools=None` or `tools=[]` exposes no tools for that reasoning call. Passing `tools=[...]` narrows the configured set and fails fast if a named or callable tool was not configured on the agent first.
 
 ## Base abstractions
 

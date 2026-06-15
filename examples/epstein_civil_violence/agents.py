@@ -5,10 +5,7 @@ import mesa
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
-from mesa_llm.tools.tool_manager import ToolManager
-
-citizen_tool_manager = ToolManager()
-cop_tool_manager = ToolManager()
+from mesa_llm.tools.defaults import legacy_tools
 
 
 class CitizenState(Enum):
@@ -64,6 +61,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             internal_state=internal_state,
             step_prompt=step_prompt,
             api_base=api_base,
+            tools=[*legacy_tools(), "change_state"],
         )
 
         self.hardship = self.random.random()
@@ -99,7 +97,6 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         self.internal_state.append(
             f"my current state in the simulation is {self.state}"
         )
-        self.tool_manager = citizen_tool_manager
         self.system_prompt = "You are a citizen in a country that is experiencing civil violence. You are a member of the general population, may or may not be in active rebellion. In general, more your suffering more the tendency for you to become active. You can move one step in a nearby cell or change your state."
 
     def update_estimated_arrest_probability(self):
@@ -138,7 +135,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             observation = self.generate_obs()
             plan = self.reasoning.plan(
                 obs=observation,
-                selected_tools=["change_state", "move_one_step"],
+                tools=["change_state", "move_one_step"],
             )
             self.apply_plan(plan)
         else:
@@ -150,7 +147,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             observation = self.generate_obs()
             plan = await self.reasoning.aplan(
                 obs=observation,
-                selected_tools=["change_state", "move_one_step"],
+                tools=["change_state", "move_one_step"],
             )
             self.apply_plan(plan)
         else:
@@ -198,9 +195,9 @@ class Cop(LLMAgent, mesa.discrete_space.CellAgent):
             internal_state=internal_state,
             step_prompt=step_prompt,
             api_base=api_base,
+            tools=[*legacy_tools(), "arrest_citizen"],
         )
         self.max_jail_term = max_jail_term
-        self.tool_manager = cop_tool_manager
         self.system_prompt = "You are a cop in a country that is experiencing civil violence. You are a member of the police force and your job is to arrest active citizens. You can arrest a citizen ONLY if they are active. You can move one step in a nearby cell or arrest a citizen."
 
         self.memory = STLTMemory(
@@ -218,7 +215,7 @@ class Cop(LLMAgent, mesa.discrete_space.CellAgent):
         observation = self.generate_obs()
         plan = self.reasoning.plan(
             obs=observation,
-            selected_tools=["move_one_step", "arrest_citizen"],
+            tools=["move_one_step", "arrest_citizen"],
         )
         self.apply_plan(plan)
 
@@ -230,6 +227,6 @@ class Cop(LLMAgent, mesa.discrete_space.CellAgent):
         observation = self.generate_obs()
         plan = await self.reasoning.aplan(
             obs=observation,
-            selected_tools=["move_one_step", "arrest_citizen"],
+            tools=["move_one_step", "arrest_citizen"],
         )
         self.apply_plan(plan)

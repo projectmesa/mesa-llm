@@ -3,7 +3,13 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from mesa_llm.reasoning.reasoning import Observation, Plan, Reasoning
+from mesa_llm.reasoning.reasoning import (
+    _UNSET,
+    Observation,
+    Plan,
+    Reasoning,
+    ToolSelection,
+)
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -24,8 +30,8 @@ class ReActReasoning(Reasoning):
         - **agent** (LLMAgent reference)
 
     Methods:
-        - **plan(prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto")** → *Plan* - Generate synchronous plan with ReAct reasoning
-        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None, tool_calls="auto")** → *Plan* - Generate asynchronous plan with ReAct reasoning
+        - **plan(prompt, obs=None, ttl=1, tools=<inherit>, tool_calls="auto")** → *Plan* - Generate synchronous plan with ReAct reasoning
+        - **async aplan(prompt, obs=None, ttl=1, tools=<inherit>, tool_calls="auto")** → *Plan* - Generate asynchronous plan with ReAct reasoning
     """
 
     def __init__(self, agent: "LLMAgent"):
@@ -70,17 +76,18 @@ class ReActReasoning(Reasoning):
         prompt: str | None = None,
         obs: Observation | None = None,
         ttl: int = 1,
-        selected_tools: list[str] | None = None,
+        tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
+        selected_tools: ToolSelection | object = _UNSET,
     ) -> Plan:
         """
         Plan the next (ReAct) action based on the current observation and the
         agent's memory.
 
-        ``selected_tools`` is forwarded to ``ToolManager.get_all_tools_schema()``.
-        Omitting it or passing ``None`` uses the default behavior of exposing
-        all tools, ``[]`` exposes no tools, and a non-empty list restricts
-        planning/execution to the named tools.
+        ``tools`` controls provider tool exposure. Omitting it inherits the
+        agent's configured tools. Explicit ``None`` or ``[]`` exposes no tools.
+        A callable, string name, or sequence exposes exactly those configured
+        tools.
 
         ``tool_calls`` controls the execution-phase LiteLLM ``tool_choice``.
         The reasoning pass still keeps tool use disabled with ``"none"``.
@@ -111,14 +118,13 @@ class ReActReasoning(Reasoning):
         else:
             raise ValueError("No prompt provided and agent.step_prompt is None.")
 
-        selected_tools_schema = self.agent.tool_manager.get_all_tools_schema(
-            selected_tools
-        )
+        tools = self._resolve_tools_argument(tools, selected_tools)
+        tools_schema = self._get_tools_schema(tools)
 
         # ---------------- generate the plan ----------------
         rsp = self.agent.llm.generate(
             prompt=prompt_list,
-            tool_schema=selected_tools_schema,
+            tool_schema=tools_schema,
             tool_choice="none",
             response_format=ReActOutput,
             system_prompt=react_system_prompt,
@@ -129,11 +135,11 @@ class ReActReasoning(Reasoning):
         self.agent.memory.add_to_memory(type="plan", content=formatted_response)
 
         # ---------------- execute the plan ----------------
+        execute_kwargs = {"ttl": ttl, "tool_calls": tool_calls}
+        if tools is not _UNSET:
+            execute_kwargs["tools"] = tools
         react_plan = self.execute_tool_call(
-            formatted_response["action"],
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
+            formatted_response["action"], **execute_kwargs
         )
 
         return react_plan
@@ -143,16 +149,14 @@ class ReActReasoning(Reasoning):
         prompt: str | None = None,
         obs: Observation | None = None,
         ttl: int = 1,
-        selected_tools: list[str] | None = None,
+        tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
+        selected_tools: ToolSelection | object = _UNSET,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
 
-        ``selected_tools`` follows the same contract as ``plan()``: omitting
-        it or passing ``None`` uses the default behavior of exposing all
-        tools, ``[]`` exposes no tools, and a non-empty list restricts
-        planning/execution to the named tools.
+        ``tools`` follows the same contract as ``plan()``.
 
         ``tool_calls`` controls the execution-phase LiteLLM ``tool_choice``.
         The reasoning pass still keeps tool use disabled with ``"none"``.
@@ -182,15 +186,14 @@ class ReActReasoning(Reasoning):
         else:
             raise ValueError("No prompt provided and agent.step_prompt is None.")
 
-        selected_tools_schema = self.agent.tool_manager.get_all_tools_schema(
-            selected_tools
-        )
+        tools = self._resolve_tools_argument(tools, selected_tools)
+        tools_schema = self._get_tools_schema(tools)
 
         # ---------------- generate the plan ----------------
 
         rsp = await self.agent.llm.agenerate(
             prompt=prompt_list,
-            tool_schema=selected_tools_schema,
+            tool_schema=tools_schema,
             tool_choice="none",
             response_format=ReActOutput,
             system_prompt=react_system_prompt,
@@ -201,11 +204,11 @@ class ReActReasoning(Reasoning):
         await self.agent.memory.aadd_to_memory(type="plan", content=formatted_response)
 
         # ---------------- execute the plan ----------------
+        execute_kwargs = {"ttl": ttl, "tool_calls": tool_calls}
+        if tools is not _UNSET:
+            execute_kwargs["tools"] = tools
         react_plan = await self.aexecute_tool_call(
-            formatted_response["action"],
-            selected_tools=selected_tools,
-            ttl=ttl,
-            tool_calls=tool_calls,
+            formatted_response["action"], **execute_kwargs
         )
 
         return react_plan
