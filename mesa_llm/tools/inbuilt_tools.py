@@ -94,24 +94,13 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
             dimensions = grid.dimensions
             if len(dimensions) == len(new_pos):
                 new_pos = tuple(coord % dim for coord, dim in zip(new_pos, dimensions))
-        elif new_pos not in grid._cells:
-            return (
-                f"Agent {agent.unique_id} is at the boundary and cannot move "
-                f"{direction}. Try a different direction."
-            )
-
-        target_cell = grid._cells.get(new_pos)
-        if target_cell is None:
-            return (
-                f"Agent {agent.unique_id} is at the boundary and cannot move "
-                f"{direction}. Try a different direction."
-            )
+        else:
+            target_cell = grid._cells.get(new_pos)
+            if target_cell is None:
+                return f"Agent {agent.unique_id} cannot move {direction}: boundary reached."
 
         if target_cell.is_full:
-            return (
-                f"Agent {agent.unique_id} cannot move {direction} because "
-                "the target cell is full."
-            )
+            return f"Agent {agent.unique_id} cannot move {direction}: target cell is occupied."
 
         target_coordinates = tuple(target_cell.coordinate)
         return teleport_to_location(agent, target_coordinates)
@@ -139,10 +128,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         if isinstance(grid_or_space, SingleGrid) and not grid_or_space.is_cell_empty(
             new_pos
         ):
-            return (
-                f"Agent {agent.unique_id} cannot move {direction} because "
-                "the target cell is occupied."
-            )
+            return f"Agent {agent.unique_id} cannot move {direction}: target cell is occupied."
 
         target_coordinates = tuple(new_pos)
         return teleport_to_location(agent, target_coordinates)
@@ -189,7 +175,7 @@ def teleport_to_location(
             "OrthogonalVonNeumannGrid, or ContinuousSpace."
         )
 
-    return f"agent {agent.unique_id} moved to {target_coordinates}."
+    return f"Agent {agent.unique_id} moved to {target_coordinates}."
 
 
 @tool
