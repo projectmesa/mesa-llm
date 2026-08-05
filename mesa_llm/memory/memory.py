@@ -31,11 +31,23 @@ def _format_message_entry(msg_value) -> str:
 class MemoryEntry:
     """
     A data structure that stores individual memory records with content, step number, and agent reference. Each entry includes `rich` formatting for display. Content is a nested dictionary of arbitrary depth containing the entry's information. Each entry is designed to hold all the information of a given step for an agent, but can also be used to store a single event if needed.
+
+    Attributes:
+        content : the (possibly nested) event data for this entry.
+        step : the simulation step the entry belongs to, or ``None`` for a
+            staged pre-step entry.
+        agent : the agent the memory belongs to.
+        embedding : optional cached embedding vector for the entry's text,
+            populated lazily by retrieval-scoring backends (e.g.
+            :class:`~mesa_llm.memory.episodic_memory.EpisodicMemory`) to avoid
+            re-embedding the same entry on every retrieval. ``None`` until
+            computed.
     """
 
     content: dict
     step: int | None
     agent: "LLMAgent"
+    embedding: list[float] | None = None
 
     def __str__(self) -> str:
         """

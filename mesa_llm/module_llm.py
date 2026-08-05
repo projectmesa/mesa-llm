@@ -2,7 +2,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from litellm import acompletion, completion, litellm
+from litellm import acompletion, aembedding, completion, embedding, litellm
 from litellm.exceptions import (
     APIConnectionError,
     NotFoundError,
@@ -271,3 +271,92 @@ class ModuleLLM:
                         raise self._build_invalid_model_error(error) from error
                     raise
         return response
+
+    @staticmethod
+    def _extract_embeddings(response) -> list[list[float]]:
+        """Pull the embedding vectors out of a LiteLLM embedding response."""
+        return [item["embedding"] for item in response.data]
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=60),
+        retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+        reraise=True,
+    )
+    def embed(
+        self,
+        text: str | list[str],
+        embedding_model: str | None = None,
+    ) -> list[float] | list[list[float]]:
+        """
+        Generate embedding vectors for one or more texts via LiteLLM.
+
+        Args:
+            text: A single string or a list of strings to embed.
+            embedding_model: Optional embedding model in ``"{provider}/{model}"``
+                format. Defaults to this module's ``llm_model``; pass a dedicated
+                embedding model (e.g. ``"openai/text-embedding-3-small"``) for
+                meaningful results.
+
+        Returns:
+            A single embedding vector when ``text`` is a string, or a list of
+            vectors (one per input) when ``text`` is a list.
+        """
+        single = isinstance(text, str)
+        inputs = [text] if single else list(text)
+        embedding_kwargs = {
+            "model": embedding_model or self.llm_model,
+            "input": inputs,
+        }
+        if self.api_base:
+            embedding_kwargs["api_base"] = self.api_base
+
+        try:
+            response = embedding(**embedding_kwargs)
+        except RateLimitError as error:
+            raise self._build_rate_limit_error(error) from error
+        except NotFoundError as error:
+            raise self._build_invalid_model_error(error) from error
+        except Exception as error:
+            if str(error).startswith("This model isn't mapped yet."):
+                raise self._build_invalid_model_error(error) from error
+            raise
+
+        vectors = self._extract_embeddings(response)
+        return vectors[0] if single else vectors
+
+    async def aembed(
+        self,
+        text: str | list[str],
+        embedding_model: str | None = None,
+    ) -> list[float] | list[list[float]]:
+        """
+        Asynchronous version of embed() for parallel embedding calls.
+        """
+        single = isinstance(text, str)
+        inputs = [text] if single else list(text)
+        async for attempt in AsyncRetrying(
+            wait=wait_exponential(multiplier=1, min=1, max=60),
+            retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+            reraise=True,
+        ):
+            with attempt:
+                embedding_kwargs = {
+                    "model": embedding_model or self.llm_model,
+                    "input": inputs,
+                }
+                if self.api_base:
+                    embedding_kwargs["api_base"] = self.api_base
+
+                try:
+                    response = await aembedding(**embedding_kwargs)
+                except RateLimitError as error:
+                    raise self._build_rate_limit_error(error) from error
+                except NotFoundError as error:
+                    raise self._build_invalid_model_error(error) from error
+                except Exception as error:
+                    if str(error).startswith("This model isn't mapped yet."):
+                        raise self._build_invalid_model_error(error) from error
+                    raise
+
+        vectors = self._extract_embeddings(response)
+        return vectors[0] if single else vectors

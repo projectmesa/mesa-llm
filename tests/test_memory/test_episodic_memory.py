@@ -7,6 +7,7 @@ import pytest
 from mesa_llm.memory.episodic_memory import (
     EpisodicMemory,
     EventGrade,
+    cosine_similarity,
     normalize_dict_values,
 )
 from mesa_llm.memory.memory import MemoryEntry
@@ -37,6 +38,20 @@ def test_normalize_dict_floats_logic_when_empty():
     """
     norm = normalize_dict_values({}, 0, 1)
     assert norm == {}
+
+
+def test_cosine_similarity_basic():
+    """cosine_similarity covers identical, orthogonal and opposite vectors."""
+    assert cosine_similarity([1.0, 0.0], [1.0, 0.0]) == 1.0
+    assert cosine_similarity([1.0, 0.0], [0.0, 1.0]) == 0.0
+    assert cosine_similarity([1.0, 0.0], [-1.0, 0.0]) == -1.0
+
+
+def test_cosine_similarity_safe_edge_cases():
+    """cosine_similarity returns 0.0 for empty, mismatched or zero vectors."""
+    assert cosine_similarity([], [1.0]) == 0.0
+    assert cosine_similarity([1.0, 2.0], [1.0]) == 0.0
+    assert cosine_similarity([0.0, 0.0], [1.0, 1.0]) == 0.0
 
 
 class TestEpisodicMemory:
@@ -165,6 +180,129 @@ class TestEpisodicMemory:
         # The highly important memory should win
         assert len(top_entries) == 1
         assert top_entries[0] == entry_a
+
+    def test_retrieve_without_embedding_model_skips_relevance(
+        self, episodic_mock_agent
+    ):
+        """With no embedding_model, retrieval must not call embed() at all."""
+        memory = EpisodicMemory(
+            agent=episodic_mock_agent, llm_model="provider/test_model"
+        )
+        memory.llm.embed = MagicMock()
+        memory.memory_entries.append(
+            MemoryEntry(content={"importance": 3}, step=100, agent=episodic_mock_agent)
+        )
+
+        memory.retrieve_top_k_entries(1, query="anything")
+
+        memory.llm.embed.assert_not_called()
+
+    def test_retrieve_relevance_promotes_similar_entry(self, episodic_mock_agent):
+        """When importance and recency tie, relevance breaks the tie."""
+        memory = EpisodicMemory(
+            agent=episodic_mock_agent,
+            llm_model="provider/test_model",
+            embedding_model="provider/embed",
+        )
+        episodic_mock_agent.model.steps = 10
+
+        # All entries share importance and step, so only relevance differs.
+        relevant = MemoryEntry(
+            content={"importance": 3, "note": "TARGET food location"},
+            step=10,
+            agent=episodic_mock_agent,
+        )
+        other_a = MemoryEntry(
+            content={"importance": 3, "note": "weather chat"},
+            step=10,
+            agent=episodic_mock_agent,
+        )
+        other_b = MemoryEntry(
+            content={"importance": 3, "note": "random walk"},
+            step=10,
+            agent=episodic_mock_agent,
+        )
+        memory.memory_entries.extend([other_a, relevant, other_b])
+
+        def fake_embed(text, embedding_model=None):
+            def vec(t):
+                return [1.0, 0.0] if "TARGET" in t else [0.0, 1.0]
+
+            return [vec(t) for t in text] if isinstance(text, list) else vec(text)
+
+        memory.llm.embed = MagicMock(side_effect=fake_embed)
+
+        top = memory.retrieve_top_k_entries(1, query="where is the TARGET")
+
+        assert top[0] is relevant
+
+    def test_retrieve_caches_entry_embeddings(self, episodic_mock_agent):
+        """Entry embeddings are computed once and cached on the MemoryEntry."""
+        memory = EpisodicMemory(
+            agent=episodic_mock_agent,
+            llm_model="provider/test_model",
+            embedding_model="provider/embed",
+        )
+        episodic_mock_agent.model.steps = 10
+        entry = MemoryEntry(
+            content={"importance": 3, "note": "x"}, step=10, agent=episodic_mock_agent
+        )
+        memory.memory_entries.append(entry)
+
+        calls = []
+
+        def fake_embed(text, embedding_model=None):
+            calls.append(text)
+            return [[1.0, 0.0] for _ in text] if isinstance(text, list) else [1.0, 0.0]
+
+        memory.llm.embed = MagicMock(side_effect=fake_embed)
+
+        memory.retrieve_top_k_entries(1, query="q1")
+        # First retrieval embeds the query (str) and the missing entry (batch list).
+        assert entry.embedding == [1.0, 0.0]
+        first_call_count = memory.llm.embed.call_count
+
+        memory.retrieve_top_k_entries(1, query="q2")
+        # Entry already embedded -> only the query is embedded the second time.
+        assert memory.llm.embed.call_count == first_call_count + 1
+        assert calls[-1] == "q2"
+
+    def test_retrieve_embedding_failure_falls_back_to_importance(
+        self, episodic_mock_agent
+    ):
+        """If embedding raises, retrieval degrades to importance + recency."""
+        memory = EpisodicMemory(
+            agent=episodic_mock_agent,
+            llm_model="provider/test_model",
+            embedding_model="provider/embed",
+        )
+        episodic_mock_agent.model.steps = 10
+        entry_low = MemoryEntry(
+            content={"importance": 1}, step=10, agent=episodic_mock_agent
+        )
+        entry_high = MemoryEntry(
+            content={"importance": 5}, step=10, agent=episodic_mock_agent
+        )
+        memory.memory_entries.extend([entry_low, entry_high])
+
+        memory.llm.embed = MagicMock(side_effect=RuntimeError("boom"))
+
+        top = memory.retrieve_top_k_entries(1, query="q")
+
+        assert top[0] is entry_high
+
+    def test_get_prompt_ready_forwards_query(self, episodic_mock_agent):
+        """get_prompt_ready forwards its query to retrieve_top_k_entries."""
+        memory = EpisodicMemory(
+            agent=episodic_mock_agent, llm_model="provider/test_model"
+        )
+        memory.retrieve_top_k_entries = MagicMock(return_value=[])
+
+        memory.get_prompt_ready(query="focal")
+
+        memory.retrieve_top_k_entries.assert_called_once_with(
+            memory.considered_entries, query="focal"
+        )
 
     def test_process_step_pre_step(self, episodic_mock_agent):
         """
