@@ -3,6 +3,7 @@ import datetime
 import mesa_llm.tools.inbuilt_tools  # noqa: F401, to register inbuilt tools
 
 from .parallel_stepping import (
+    AgentStepResult,
     enable_automatic_parallel_stepping,
     step_agents_parallel,
     step_agents_parallel_sync,
@@ -24,6 +25,7 @@ from .tools.tool_manager import ToolManager
 enable_automatic_parallel_stepping()
 
 __all__ = [
+    "AgentStepResult",
     "Observation",
     "Plan",
     "ToolManager",
