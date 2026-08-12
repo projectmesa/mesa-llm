@@ -1,25 +1,36 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import copy
 import inspect
+import json
+import math
 from collections.abc import Callable
 from types import UnionType
 from typing import (
     Annotated,
     Any,
-    ClassVar,
     Literal,
     Union,
     get_args,
     get_origin,
-    get_type_hints,
 )
 
 from pydantic import BaseModel, Field
 from terminal_style import style
 
-from mesa_llm.actions.action_decorator import _GLOBAL_ACTION_REGISTRY
+from mesa_llm.actions.action_decorator import (
+    _GLOBAL_ACTION_REGISTRY,
+    ActionAnnotationContractError,
+    _get_action_parameter_contract,
+    _get_action_parameters,
+    _get_action_type_hints,
+    _get_required_action_parameter_names,
+    _is_keyword_injectable_parameter,
+    _validate_action_callable,
+    _validate_injected_agent_parameters,
+)
 
 _UNSET = object()
 ActionRef = Callable | str
@@ -49,13 +60,10 @@ class ActionManager:
     selectors are constrained to the manager's configured actions.
     """
 
-    instances: ClassVar[list[ActionManager]] = []
-
     def __init__(
         self,
         actions: list[ActionRef] | tuple[ActionRef, ...] | None = None,
     ):
-        ActionManager.instances.append(self)
         self.actions: dict[str, Callable] = {}
 
         if actions is not None:
@@ -63,12 +71,49 @@ class ActionManager:
 
     def register(self, fn: Callable):
         """Register an action function by name."""
-        self.actions[fn.__name__] = fn
+        action_name = self._preflight_registration(fn, self.actions)
+        if action_name not in self.actions:
+            self.actions[action_name] = fn
 
     def register_many(self, actions: list[ActionRef] | tuple[ActionRef, ...]):
         """Register explicit action callables or registered action names."""
+        staged_actions = dict(self.actions)
         for action_ref in actions:
-            self.register(self._resolve_registration_action_ref(action_ref))
+            fn = self._resolve_registration_action_ref(
+                action_ref,
+                registered_actions=staged_actions,
+            )
+            action_name = self._preflight_registration(fn, staged_actions)
+            if action_name not in staged_actions:
+                staged_actions[action_name] = fn
+
+        self.actions.update(
+            (name, fn)
+            for name, fn in staged_actions.items()
+            if name not in self.actions
+        )
+
+    def _preflight_registration(
+        self,
+        fn: Callable,
+        registered_actions: dict[str, Callable],
+    ) -> str:
+        """Validate one resolved registration without mutating manager state."""
+        _validate_action_callable(fn)
+        _validate_injected_agent_parameters(fn)
+        action_name = fn.__name__
+        if (
+            action_name in registered_actions
+            and registered_actions[action_name] is not fn
+        ):
+            raise ValueError(
+                f"Action name {action_name!r} is already registered to a "
+                "different callable in this manager."
+            )
+
+        self._get_action_schema(fn, schema_name=action_name)
+        _get_action_parameter_contract(fn)
+        return action_name
 
     def has_action(self, name: str) -> bool:
         """Return whether this manager has a configured action by name."""
@@ -111,7 +156,10 @@ class ActionManager:
         schema_name = schema_name or getattr(fn, "__name__", repr(fn))
         schema = getattr(fn, "__action_schema__", None)
         if schema is None:
-            return {"error": f"Action {schema_name} missing __action_schema__"}
+            raise ActionAnnotationContractError(
+                f"Action {schema_name!r} must be decorated with @action before "
+                "registration; missing __action_schema__."
+            )
 
         if schema.get("name") == schema_name:
             return schema
@@ -145,21 +193,29 @@ class ActionManager:
             )
         )
 
-    def _resolve_registration_action_ref(self, action_ref: ActionRef) -> Callable:
+    def _resolve_registration_action_ref(
+        self,
+        action_ref: ActionRef,
+        *,
+        registered_actions: dict[str, Callable] | None = None,
+    ) -> Callable:
         """Resolve constructor action references."""
+        registered_actions = (
+            self.actions if registered_actions is None else registered_actions
+        )
         if callable(action_ref):
             return action_ref
 
         if isinstance(action_ref, str):
-            if action_ref in self.actions:
-                return self.actions[action_ref]
+            if action_ref in registered_actions:
+                return registered_actions[action_ref]
             if action_ref in _GLOBAL_ACTION_REGISTRY:
                 return _GLOBAL_ACTION_REGISTRY[action_ref]
             raise ValueError(
                 style(
                     "Unknown action name(s): "
                     f"{[action_ref]}. Available actions: "
-                    f"{sorted(set(self.actions) | set(_GLOBAL_ACTION_REGISTRY))}",
+                    f"{sorted(set(registered_actions) | set(_GLOBAL_ACTION_REGISTRY))}",
                     color="red",
                 )
             )
@@ -247,15 +303,167 @@ class ActionManager:
         actions: ActionSelection | object = _UNSET,
     ) -> Any:
         """Validate and execute one configured action locally."""
+        choice, result = self._call_validated_action(
+            agent,
+            action_choice,
+            actions=actions,
+            reject_async_callable=True,
+        )
+        self._reject_generator_action_result(choice.name, result)
+        if inspect.isawaitable(result):
+            self._close_awaitable_if_safe(result)
+            raise self._synchronous_awaitable_error(choice.name)
+        return result
+
+    def _call_validated_action(
+        self,
+        agent: Any,
+        action_choice: ActionChoice | dict[str, Any],
+        actions: ActionSelection | object = _UNSET,
+        *,
+        reject_async_callable: bool = False,
+    ) -> tuple[ActionChoice, Any]:
         choice = self.validate(agent, action_choice, actions=actions)
         action_fn = self.available_actions(agent=agent, actions=actions)[choice.name]
+        if reject_async_callable and inspect.iscoroutinefunction(action_fn):
+            raise self._synchronous_awaitable_error(choice.name)
 
         call_arguments = dict(choice.arguments)
         agent_parameter = self._get_agent_parameter_name(action_fn)
         if agent_parameter is not None:
             call_arguments[agent_parameter] = agent
 
-        return action_fn(**call_arguments)
+        return choice, action_fn(**call_arguments)
+
+    def _close_awaitable_if_safe(self, result: Any) -> None:
+        if isinstance(result, asyncio.Future):
+            result.cancel()
+        elif inspect.iscoroutine(result):
+            result.close()
+
+    def _synchronous_awaitable_error(self, action_name: str) -> TypeError:
+        return TypeError(
+            style(
+                f"Action {action_name!r} requires asynchronous execution but was "
+                "passed to synchronous ActionManager.execute(...). Async actions "
+                "require ActionManager.aexecute(...), "
+                "LLMAgent.aexecute_action(...), or LLMAgent.aact(...).",
+                color="red",
+            )
+        )
+
+    def _generator_action_result_error(self, action_name: str) -> TypeError:
+        return TypeError(
+            style(
+                f"Action {action_name!r} must return one completed result; "
+                "generator and async-generator results are not supported as "
+                "actions.",
+                color="red",
+            )
+        )
+
+    def _note_generator_cleanup_failure(
+        self,
+        primary_error: TypeError,
+        result_kind: str,
+        cleanup_error: Exception,
+    ) -> None:
+        try:
+            cleanup_text = str(cleanup_error)
+        except BaseException:
+            try:
+                cleanup_text = repr(cleanup_error)
+            except BaseException:
+                cleanup_text = "<unprintable cleanup exception>"
+
+        primary_error.add_note(
+            f"Cleanup of the rejected {result_kind} result failed with "
+            f"{type(cleanup_error).__name__}: {cleanup_text}"
+        )
+
+    def _reject_generator_action_result(
+        self,
+        action_name: str,
+        result: Any,
+    ) -> None:
+        if not (inspect.isgenerator(result) or inspect.isasyncgen(result)):
+            return
+
+        primary_error = self._generator_action_result_error(action_name)
+        result_kind = "generator" if inspect.isgenerator(result) else "async-generator"
+
+        if result_kind == "generator":
+            try:
+                result.close()
+            except Exception as cleanup_error:
+                self._note_generator_cleanup_failure(
+                    primary_error,
+                    result_kind,
+                    cleanup_error,
+                )
+            raise primary_error
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                asyncio.run(result.aclose())
+            except Exception as cleanup_error:
+                self._note_generator_cleanup_failure(
+                    primary_error,
+                    result_kind,
+                    cleanup_error,
+                )
+        else:
+            # Synchronous execution cannot await aclose() without nesting the
+            # active loop or scheduling cleanup beyond this execution boundary.
+            primary_error.add_note(
+                "The rejected async-generator result was not closed because "
+                "synchronous ActionManager.execute(...) cannot await aclose() "
+                "while an event loop is already running in this thread."
+            )
+        raise primary_error
+
+    async def _areject_generator_action_result(
+        self,
+        action_name: str,
+        result: Any,
+    ) -> None:
+        if not (inspect.isgenerator(result) or inspect.isasyncgen(result)):
+            return
+
+        primary_error = self._generator_action_result_error(action_name)
+        result_kind = "generator" if inspect.isgenerator(result) else "async-generator"
+        try:
+            if result_kind == "generator":
+                result.close()
+            else:
+                await result.aclose()
+        except Exception as cleanup_error:
+            self._note_generator_cleanup_failure(
+                primary_error,
+                result_kind,
+                cleanup_error,
+            )
+        raise primary_error
+
+    async def aexecute(
+        self,
+        agent: Any,
+        action_choice: ActionChoice | dict[str, Any],
+        actions: ActionSelection | object = _UNSET,
+    ) -> Any:
+        """Validate and asynchronously execute one configured action locally."""
+        choice, result = self._call_validated_action(
+            agent,
+            action_choice,
+            actions=actions,
+        )
+        await self._areject_generator_action_result(choice.name, result)
+        if inspect.isawaitable(result):
+            result = await result
+            await self._areject_generator_action_result(choice.name, result)
+        return result
 
     def _coerce_action_choice(
         self,
@@ -330,19 +538,14 @@ class ActionManager:
         arguments: dict[str, Any],
         contract: dict[str, Any],
     ) -> dict[str, Any]:
-        try:
-            type_hints = get_type_hints(action_fn)
-        except (NameError, AttributeError, TypeError):
-            type_hints = getattr(action_fn, "__annotations__", {})
-
-        if not type_hints:
-            return arguments
+        type_hints = _get_action_type_hints(
+            action_fn,
+            parameter_names=contract["allowed"],
+        )
 
         coerced_arguments = dict(arguments)
         for argument_name in contract["allowed"]:
             if argument_name not in coerced_arguments:
-                continue
-            if argument_name not in type_hints:
                 continue
 
             coerced_arguments[argument_name] = self._validate_and_coerce_value(
@@ -363,15 +566,23 @@ class ActionManager:
         expected_type: Any,
     ) -> Any:
         expected_type = self._normalize_action_annotation(expected_type)
-        if expected_type is Any:
-            return value
+        if expected_type is Any or expected_type is object:
+            raise self._unsupported_runtime_action_annotation_error(
+                action_name,
+                argument_path,
+                expected_type,
+            )
 
         origin = get_origin(expected_type)
         args = get_args(expected_type)
 
         if origin is Annotated:
             if not args:
-                return value
+                raise self._unsupported_runtime_action_annotation_error(
+                    action_name,
+                    argument_path,
+                    expected_type,
+                )
             return self._validate_and_coerce_value(
                 action_name=action_name,
                 argument_path=argument_path,
@@ -389,13 +600,12 @@ class ActionManager:
             )
 
         if origin is Literal:
-            if value in args:
-                return value
-            raise self._invalid_action_argument_type_error(
-                action_name,
-                argument_path,
-                expected_type,
-                value,
+            return self._validate_and_coerce_literal_value(
+                action_name=action_name,
+                argument_path=argument_path,
+                value=value,
+                expected_type=expected_type,
+                literal_values=args,
             )
 
         if expected_type is type(None):
@@ -457,7 +667,40 @@ class ActionManager:
                 args=args,
             )
 
-        return value
+        raise self._unsupported_runtime_action_annotation_error(
+            action_name,
+            argument_path,
+            expected_type,
+        )
+
+    def _validate_and_coerce_literal_value(
+        self,
+        *,
+        action_name: str,
+        argument_path: str,
+        value: Any,
+        expected_type: Any,
+        literal_values: tuple[Any, ...],
+    ) -> Any:
+        for candidate in literal_values:
+            if type(value) is type(candidate) and value == candidate:
+                return candidate
+
+        if type(value) in {int, float}:
+            numeric_matches = [
+                candidate
+                for candidate in literal_values
+                if type(candidate) in {int, float} and value == candidate
+            ]
+            if numeric_matches:
+                return numeric_matches[0]
+
+        raise self._invalid_action_argument_type_error(
+            action_name,
+            argument_path,
+            expected_type,
+            value,
+        )
 
     def _validate_and_coerce_union_value(
         self,
@@ -468,6 +711,15 @@ class ActionManager:
         expected_type: Any,
         union_args: tuple[Any, ...],
     ) -> Any:
+        for union_type in union_args:
+            if self._is_exact_action_value_match(
+                action_name=action_name,
+                argument_path=argument_path,
+                value=value,
+                expected_type=union_type,
+            ):
+                return value
+
         for union_type in union_args:
             with contextlib.suppress(ValueError):
                 return self._validate_and_coerce_value(
@@ -484,6 +736,126 @@ class ActionManager:
             value,
         )
 
+    def _is_exact_action_value_match(
+        self,
+        *,
+        action_name: str,
+        argument_path: str,
+        value: Any,
+        expected_type: Any,
+    ) -> bool:
+        """Return whether a value satisfies an annotation without coercion."""
+        expected_type = self._normalize_action_annotation(expected_type)
+        if expected_type is Any or expected_type is object:
+            raise self._unsupported_runtime_action_annotation_error(
+                action_name,
+                argument_path,
+                expected_type,
+            )
+
+        origin = get_origin(expected_type)
+        args = get_args(expected_type)
+
+        if origin is Annotated:
+            if not args:
+                raise self._unsupported_runtime_action_annotation_error(
+                    action_name,
+                    argument_path,
+                    expected_type,
+                )
+            return self._is_exact_action_value_match(
+                action_name=action_name,
+                argument_path=argument_path,
+                value=value,
+                expected_type=args[0],
+            )
+
+        if origin in {Union, UnionType}:
+            return any(
+                self._is_exact_action_value_match(
+                    action_name=action_name,
+                    argument_path=argument_path,
+                    value=value,
+                    expected_type=union_type,
+                )
+                for union_type in args
+            )
+
+        if origin is Literal:
+            return any(
+                type(value) is type(candidate) and value == candidate
+                for candidate in args
+            )
+
+        if expected_type is type(None):
+            return value is None
+
+        if expected_type in {int, float}:
+            return self._is_valid_numeric_action_value(value, expected_type)
+
+        if expected_type is str:
+            return isinstance(value, str)
+
+        if expected_type is bool:
+            return isinstance(value, bool)
+
+        if origin in {list, tuple, set} or expected_type in {list, tuple, set}:
+            container_type = origin or expected_type
+            if not isinstance(value, container_type):
+                return False
+
+            if container_type is tuple and args and args[-1] is not Ellipsis:
+                if len(value) != len(args):
+                    return False
+                return all(
+                    self._is_exact_action_value_match(
+                        action_name=action_name,
+                        argument_path=f"{argument_path}[{index}]",
+                        value=item,
+                        expected_type=args[index],
+                    )
+                    for index, item in enumerate(value)
+                )
+
+            item_type = args[0] if args else Any
+            return all(
+                self._is_exact_action_value_match(
+                    action_name=action_name,
+                    argument_path=f"{argument_path}[{index}]",
+                    value=item,
+                    expected_type=item_type,
+                )
+                for index, item in enumerate(value)
+            )
+
+        if origin is dict or expected_type is dict:
+            if not isinstance(value, dict):
+                return False
+
+            key_type = args[0] if len(args) >= 1 else Any
+            value_type = args[1] if len(args) >= 2 else Any
+            return all(
+                self._is_exact_action_value_match(
+                    action_name=action_name,
+                    argument_path=f"{argument_path}.<key>",
+                    value=key,
+                    expected_type=key_type,
+                )
+                and self._is_exact_action_value_match(
+                    action_name=action_name,
+                    argument_path=f"{argument_path}[{key!r}]",
+                    value=item_value,
+                    expected_type=value_type,
+                )
+                for key, item_value in value.items()
+            )
+
+        raise self._unsupported_runtime_action_annotation_error(
+            action_name,
+            argument_path,
+            expected_type,
+        )
+
     def _validate_and_coerce_sequence_value(
         self,
         *,
@@ -494,6 +866,13 @@ class ActionManager:
         origin: Any,
         args: tuple[Any, ...],
     ) -> Any:
+        container_type = origin or expected_type
+        item_types = args
+        if isinstance(value, str):
+            coerced_sequence = self._coerce_string_sequence_value(value)
+            if coerced_sequence is not None:
+                value = coerced_sequence
+
         if not isinstance(value, (list, tuple, set)):
             raise self._invalid_action_argument_type_error(
                 action_name,
@@ -502,8 +881,6 @@ class ActionManager:
                 value,
             )
 
-        container_type = origin or expected_type
-        item_types = args
         if container_type is tuple and item_types and item_types[-1] is not Ellipsis:
             if len(value) != len(item_types):
                 raise self._invalid_action_argument_type_error(
@@ -547,6 +924,18 @@ class ActionManager:
                 ) from exc
         return list(coerced_items)
 
+    def _coerce_string_sequence_value(
+        self,
+        value: str,
+    ) -> list[Any] | None:
+        value = value.strip()
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
+            decoded = json.loads(value)
+            if isinstance(decoded, list):
+                return decoded
+
+        return None
+
     def _validate_and_coerce_mapping_value(
         self,
         *,
@@ -581,12 +970,12 @@ class ActionManager:
         }
 
     def _coerce_numeric_action_value(self, value: Any, expected_type: type) -> Any:
-        if isinstance(value, bool):
+        if self._is_boolean_scalar(value):
             return value
         if self._is_valid_numeric_action_value(value, expected_type):
             return value
 
-        with contextlib.suppress(ValueError, TypeError):
+        with contextlib.suppress(OverflowError, ValueError, TypeError):
             coerced_value = expected_type(value)
             if expected_type is int and not self._is_lossless_int_coercion(
                 value, coerced_value
@@ -602,13 +991,21 @@ class ActionManager:
         return coerced_value == value
 
     def _is_valid_numeric_action_value(self, value: Any, expected_type: type) -> bool:
-        if isinstance(value, bool):
+        if self._is_boolean_scalar(value):
             return False
         if expected_type is int:
             return isinstance(value, int)
         if expected_type is float:
-            return isinstance(value, int | float)
+            return isinstance(value, int) or (
+                isinstance(value, float) and math.isfinite(value)
+            )
         return False
+
+    @staticmethod
+    def _is_boolean_scalar(value: Any) -> bool:
+        if isinstance(value, bool):
+            return True
+        return getattr(getattr(value, "dtype", None), "kind", None) == "b"
 
     def _normalize_action_annotation(self, annotation: Any) -> Any:
         if not isinstance(annotation, str):
@@ -624,11 +1021,22 @@ class ActionManager:
             "list": list,
             "None": type(None),
             "NoneType": type(None),
-            "object": Any,
+            "object": object,
             "set": set,
             "str": str,
             "tuple": tuple,
-        }.get(annotation, Any)
+        }.get(annotation, annotation)
+
+    def _unsupported_runtime_action_annotation_error(
+        self,
+        action_name: str,
+        argument_path: str,
+        expected_type: Any,
+    ) -> ActionAnnotationContractError:
+        return ActionAnnotationContractError(
+            "Unsupported annotation reached runtime validation for action "
+            f"{action_name!r} argument {argument_path!r}: {expected_type!r}."
+        )
 
     def _invalid_action_argument_type_error(
         self,
@@ -671,7 +1079,6 @@ class ActionManager:
     def _get_action_argument_contract(self, action_fn: Callable) -> dict[str, Any]:
         signature_allowed: set[str] = set()
         signature_required: set[str] = set()
-        accepts_extra_arguments = False
         signature_available = False
 
         try:
@@ -680,18 +1087,11 @@ class ActionManager:
             signature = None
         if signature is not None:
             signature_available = True
-            for param_name, param in signature.parameters.items():
-                if param.kind is inspect.Parameter.VAR_KEYWORD:
-                    accepts_extra_arguments = True
-                    continue
-                if param.kind is inspect.Parameter.VAR_POSITIONAL:
-                    continue
-                if param_name.lower() == "agent":
-                    continue
-
-                signature_allowed.add(param_name)
-                if param.default is inspect.Parameter.empty:
-                    signature_required.add(param_name)
+            action_params = _get_action_parameters(action_fn, signature)
+            signature_allowed = set(action_params)
+            signature_required = set(
+                _get_required_action_parameter_names(action_params)
+            )
 
         schema = getattr(action_fn, "__action_schema__", None)
         schema_allowed: set[str] = set()
@@ -711,7 +1111,7 @@ class ActionManager:
             "required": (
                 signature_required if signature_available else schema_required
             ),
-            "accepts_extra_arguments": accepts_extra_arguments,
+            "accepts_extra_arguments": False,
         }
 
     def _get_agent_parameter_name(self, action_fn: Callable) -> str | None:
@@ -723,11 +1123,7 @@ class ActionManager:
         for param_name, param in signature.parameters.items():
             if param_name.lower() != "agent":
                 continue
-            if param.kind in {
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.VAR_POSITIONAL,
-            }:
-                continue
-            return param_name
+            if _is_keyword_injectable_parameter(param):
+                return param_name
 
         return None
