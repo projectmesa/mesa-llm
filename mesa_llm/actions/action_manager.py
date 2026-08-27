@@ -447,6 +447,166 @@ class ActionManager:
             )
         raise primary_error
 
+    def _nested_awaitable_action_result_error(
+        self,
+        action_name: str,
+    ) -> TypeError:
+        return TypeError(
+            style(
+                f"Action {action_name!r} must return one completed result after "
+                "the supported asynchronous execution boundary; nested "
+                "awaitable results are not supported.",
+                color="red",
+            )
+        )
+
+    def _note_nested_awaitable_cleanup_failure(
+        self,
+        primary_error: TypeError,
+        result_kind: str,
+        cleanup_error: Exception,
+    ) -> None:
+        try:
+            cleanup_text = str(cleanup_error)
+        except BaseException:
+            try:
+                cleanup_text = repr(cleanup_error)
+            except BaseException:
+                cleanup_text = "<unprintable cleanup exception>"
+
+        primary_error.add_note(
+            f"Cleanup of the rejected nested {result_kind} result failed with "
+            f"{type(cleanup_error).__name__}: {cleanup_text}"
+        )
+
+    async def _cleanup_nested_awaitable_action_result(
+        self,
+        primary_error: TypeError,
+        result: Any,
+        seen: set[int],
+    ) -> None:
+        result_identity = id(result)
+        if result_identity in seen:
+            primary_error.add_note(
+                "Cleanup of the rejected nested awaitable stopped after "
+                "detecting an identity cycle."
+            )
+            return
+        seen.add(result_identity)
+
+        if isinstance(result, asyncio.Future):
+            if result is asyncio.current_task():
+                primary_error.add_note(
+                    "The rejected nested asyncio Task was not cancelled because "
+                    "it is the current task running ActionManager.aexecute(...); "
+                    "self-cancellation is unsafe."
+                )
+                return
+
+            if result.cancelled():
+                return
+
+            if not result.done():
+                try:
+                    cancelled = result.cancel()
+                except Exception as cleanup_error:
+                    self._note_nested_awaitable_cleanup_failure(
+                        primary_error,
+                        "asyncio Future or Task",
+                        cleanup_error,
+                    )
+                    return
+
+                if cancelled or result.cancelled():
+                    return
+                if not result.done():
+                    primary_error.add_note(
+                        "The rejected nested asyncio Future or Task remained "
+                        "pending after cancellation was requested."
+                    )
+                    return
+
+            if result.cancelled():
+                return
+
+            try:
+                nested_result = result.result()
+            except Exception as cleanup_error:
+                self._note_nested_awaitable_cleanup_failure(
+                    primary_error,
+                    "completed asyncio Future or Task",
+                    cleanup_error,
+                )
+                return
+
+            if (
+                inspect.isawaitable(nested_result)
+                or inspect.isgenerator(nested_result)
+                or inspect.isasyncgen(nested_result)
+            ):
+                await self._cleanup_nested_awaitable_action_result(
+                    primary_error,
+                    nested_result,
+                    seen,
+                )
+            return
+
+        if inspect.isgenerator(result):
+            try:
+                result.close()
+            except Exception as cleanup_error:
+                self._note_nested_awaitable_cleanup_failure(
+                    primary_error,
+                    "generator",
+                    cleanup_error,
+                )
+            return
+
+        if inspect.isasyncgen(result):
+            try:
+                await result.aclose()
+            except Exception as cleanup_error:
+                self._note_nested_awaitable_cleanup_failure(
+                    primary_error,
+                    "async-generator",
+                    cleanup_error,
+                )
+            return
+
+        if inspect.iscoroutine(result):
+            try:
+                result.close()
+            except Exception as cleanup_error:
+                self._note_nested_awaitable_cleanup_failure(
+                    primary_error,
+                    "native coroutine",
+                    cleanup_error,
+                )
+            return
+
+        primary_error.add_note(
+            "The rejected nested custom awaitable was not cleaned up because "
+            "it has no safe native coroutine-close or asyncio Future/Task-"
+            "cancel mechanism; ActionManager.aexecute(...) does not drive "
+            "opaque custom awaitables during cleanup."
+        )
+
+    async def _reject_nested_awaitable_action_result(
+        self,
+        action_name: str,
+        result: Any,
+    ) -> None:
+        if not inspect.isawaitable(result):
+            return
+
+        primary_error = self._nested_awaitable_action_result_error(action_name)
+        await self._cleanup_nested_awaitable_action_result(
+            primary_error,
+            result,
+            set(),
+        )
+        raise primary_error
+
     async def aexecute(
         self,
         agent: Any,
@@ -463,6 +623,7 @@ class ActionManager:
         if inspect.isawaitable(result):
             result = await result
             await self._areject_generator_action_result(choice.name, result)
+            await self._reject_nested_awaitable_action_result(choice.name, result)
         return result
 
     def _coerce_action_choice(

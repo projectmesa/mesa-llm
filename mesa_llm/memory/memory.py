@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,61 @@ def _format_message_entry(msg_value) -> str:
     return str(msg_value)
 
 
+def _ordered_event_payloads(
+    content: dict,
+    event_order,
+    event_types: tuple[str, ...],
+) -> list[tuple[str, object]]:
+    """Return selected grouped events in their captured insertion order.
+
+    Older entries and malformed sidecars use the historical deterministic
+    mapping order. Validation happens before replay so a partially valid
+    sidecar can never drop or duplicate part of a content object.
+    """
+    selected_types = set(event_types)
+    ordered_types = (
+        {marker for marker in event_order if isinstance(marker, str)}
+        if isinstance(event_order, list | tuple)
+        else set()
+    )
+    grouped_values = {
+        event_type: value if isinstance(value, list) else [value]
+        for event_type, value in content.items()
+        if event_type in selected_types or event_type in ordered_types
+    }
+    fallback = [
+        (event_type, payload)
+        for event_type, payloads in grouped_values.items()
+        if event_type in selected_types
+        for payload in payloads
+    ]
+
+    if not isinstance(event_order, list | tuple) or not event_order:
+        return fallback
+
+    if any(
+        not isinstance(marker, str) or marker not in grouped_values
+        for marker in event_order
+    ):
+        return fallback
+    marker_counts = Counter(event_order)
+    if any(
+        marker_counts[event_type] != len(payloads)
+        for event_type, payloads in grouped_values.items()
+    ):
+        return fallback
+
+    cursors = dict.fromkeys(grouped_values, 0)
+    ordered = []
+    for event_type in event_order:
+        cursor = cursors[event_type]
+        payload = grouped_values[event_type][cursor]
+        cursors[event_type] = cursor + 1
+        if event_type in selected_types:
+            ordered.append((event_type, payload))
+    return ordered
+
+
 @dataclass
 class MemoryEntry:
     """
@@ -36,6 +92,9 @@ class MemoryEntry:
     content: dict
     step: int | None
     agent: "LLMAgent"
+
+    def __post_init__(self):
+        self._event_order: list[str] = []
 
     def __str__(self) -> str:
         """
@@ -129,6 +188,44 @@ class Memory(ABC):
         - Repeated ``observation`` or ``plan`` entries within one step overwrite the previous value unless configured otherwise.
     """
 
+    _STEP_EVENT_ORDER_STORAGE_KEY = "_step_event_order_storage"
+
+    @property
+    def _step_event_order(self) -> list[str]:
+        """Return this instance's event-order buffer.
+
+        Older and partially initialized memory instances may not have the
+        backing state introduced for ordered additive events. Lazily creating
+        it here keeps every read safe without sharing mutable class state. A
+        legacy value stored under the descriptor's attribute name is migrated by
+        identity when possible.
+        """
+        instance_state = self.__dict__
+        storage_key = Memory._STEP_EVENT_ORDER_STORAGE_KEY
+        event_order = instance_state.get(storage_key)
+
+        if isinstance(event_order, list):
+            instance_state.pop("_step_event_order", None)
+            return event_order
+
+        legacy_event_order = instance_state.get("_step_event_order")
+        if storage_key not in instance_state and isinstance(legacy_event_order, list):
+            event_order = legacy_event_order
+        else:
+            event_order = []
+
+        instance_state[storage_key] = event_order
+        instance_state.pop("_step_event_order", None)
+        return event_order
+
+    @_step_event_order.setter
+    def _step_event_order(self, event_order: list[str]) -> None:
+        """Store an event-order buffer while preserving valid list identity."""
+        if not isinstance(event_order, list):
+            event_order = []
+        self.__dict__[Memory._STEP_EVENT_ORDER_STORAGE_KEY] = event_order
+        self.__dict__.pop("_step_event_order", None)
+
     def __init__(
         self,
         agent: "LLMAgent",
@@ -158,6 +255,7 @@ class Memory(ABC):
         self.display = display
 
         self.step_content: dict = {}
+        self._step_event_order: list[str] = []
         if additive_event_types is None:
             additive_event_types = {"message", "action"}
         self.additive_event_types = set(additive_event_types)
@@ -192,6 +290,42 @@ class Memory(ABC):
         if isinstance(value, list):
             return list(value)
         return [value]
+
+    def _normalized_step_event_order(
+        self,
+        content: dict,
+        event_order,
+    ) -> list[str]:
+        """Return a complete order for one staged or current step segment.
+
+        A valid sidecar is preserved exactly. Legacy, missing, or malformed
+        metadata falls back to the segment's deterministic grouped-content
+        order, without using unrelated list-valued fields as event markers.
+        """
+        grouped_counts = {
+            event_type: len(self._coerce_additive_values(value))
+            for event_type, value in content.items()
+            if event_type in self.additive_event_types
+        }
+        fallback = [
+            event_type
+            for event_type, value in content.items()
+            if event_type in self.additive_event_types
+            for _ in self._coerce_additive_values(value)
+        ]
+
+        if not isinstance(event_order, list | tuple):
+            return fallback
+
+        normalized = list(event_order)
+        if any(
+            not isinstance(marker, str) or marker not in grouped_counts
+            for marker in normalized
+        ):
+            return fallback
+        if Counter(normalized) != Counter(grouped_counts):
+            return fallback
+        return normalized
 
     def _merge_step_contents(self, current_content: dict, staged_content: dict) -> dict:
         """
@@ -229,6 +363,12 @@ class Memory(ABC):
             )
 
         if type in self.additive_event_types:
+            event_order = self._step_event_order
+            event_order[:] = self._normalized_step_event_order(
+                self.step_content,
+                event_order,
+            )
+
             # Accumulate discrete events so concurrent entries are preserved
             existing = self.step_content.get(type)
             if existing is None:
@@ -238,6 +378,7 @@ class Memory(ABC):
             else:
                 # Migrate a legacy single-dict entry into a list
                 self.step_content[type] = [existing, content]
+            event_order.append(type)
         else:
             self.step_content[type] = content
 
